@@ -17,10 +17,14 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, TypeAlias, TypedDict
+from typing import Any, TypeAlias, TypedDict, Union
 
 import numpy as np
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 
 class TransitionKey(str, Enum):
@@ -36,7 +40,13 @@ class TransitionKey(str, Enum):
     COMPLEMENTARY_DATA = "complementary_data"
 
 
-PolicyAction: TypeAlias = torch.Tensor
+# Type aliases - use Any when torch is not available
+if torch is not None:
+    PolicyAction: TypeAlias = torch.Tensor
+    TorchTensor: TypeAlias = torch.Tensor
+else:
+    PolicyAction: TypeAlias = Any
+    TorchTensor: TypeAlias = Any
 RobotAction: TypeAlias = dict[str, Any]
 EnvAction: TypeAlias = np.ndarray
 RobotObservation: TypeAlias = dict[str, Any]
@@ -45,12 +55,12 @@ RobotObservation: TypeAlias = dict[str, Any]
 EnvTransition = TypedDict(
     "EnvTransition",
     {
-        TransitionKey.OBSERVATION.value: RobotObservation | None,
-        TransitionKey.ACTION.value: PolicyAction | RobotAction | EnvAction | None,
-        TransitionKey.REWARD.value: float | torch.Tensor | None,
-        TransitionKey.DONE.value: bool | torch.Tensor | None,
-        TransitionKey.TRUNCATED.value: bool | torch.Tensor | None,
-        TransitionKey.INFO.value: dict[str, Any] | None,
-        TransitionKey.COMPLEMENTARY_DATA.value: dict[str, Any] | None,
+        TransitionKey.OBSERVATION.value: Union[RobotObservation, None],
+        TransitionKey.ACTION.value: Union[PolicyAction, RobotAction, EnvAction, None],
+        TransitionKey.REWARD.value: Union[float, TorchTensor, None],
+        TransitionKey.DONE.value: Union[bool, TorchTensor, None],
+        TransitionKey.TRUNCATED.value: Union[bool, TorchTensor, None],
+        TransitionKey.INFO.value: Union[dict[str, Any], None],
+        TransitionKey.COMPLEMENTARY_DATA.value: Union[dict[str, Any], None],
     },
 )

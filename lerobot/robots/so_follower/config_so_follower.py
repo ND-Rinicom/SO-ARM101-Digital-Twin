@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import TypeAlias
+from typing import TypeAlias, Union
 
 from lerobot.cameras import CameraConfig
 
@@ -34,7 +34,7 @@ class SOFollowerConfig:
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
     # Set this to a positive scalar to have the same value for all motors, or a dictionary that maps motor
     # names to the max_relative_target value for that motor.
-    max_relative_target: float | dict[str, float] | None = None
+    max_relative_target: Union[float, dict[str, float], None] = None
 
     # cameras
     cameras: dict[str, CameraConfig] = field(default_factory=dict)

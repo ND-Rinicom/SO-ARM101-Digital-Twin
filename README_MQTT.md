@@ -1,43 +1,71 @@
 # SO-ARM101 MQTT Teleoperation
 
-Minimal codebase for controlling SO-ARM101 follower via MQTT from a leader arm.
+**Minimal** codebase for controlling SO-ARM101 follower via MQTT from a leader arm.
 
 ## Features
 
 - **Jump Protection**: Follower checks safety locally (no network latency)
 - **Calibration Support**: Uses standard LeRobot calibration files
-- **Robust**: Works even with slow/unreliable networks
-- **Minimal**: ~25 files, <1MB total
+- **Robust**: Works even with slow/unreliable networks  
+- **Minimal**: ~130KB (perfect for Raspberry Pi with limited space)
 
 ## Setup
 
-### 1. Install Dependencies
+### 1. Create Virtual Environment (Recommended)
 
 On both PC and Raspberry Pi:
 
 ```bash
-pip install paho-mqtt feetech-servo-sdk pyserial
+# Create virtual environment
+python3 -m venv ~/lerobot-venv
+
+# Activate virtual environment
+source ~/lerobot-venv/bin/activate
+
+# Verify Python version
+python --version
 ```
 
-### 2. Calibrate Your Arms
+To deactivate later: `deactivate`
+
+### 2. Install Dependencies
+
+On both PC and Raspberry Pi (with venv activated):
+
+```bash
+pip install paho-mqtt feetech-servo-sdk pyserial draccus deepdiff tqdm numpy huggingface-hub
+```
+
+**Note:** `torch`, `accelerate`, and `datasets` are optional and not required for MQTT control.
+
+### 3. Transfer to Raspberry Pi (if needed)
+
+Copy the project from PC to Raspberry Pi:
+
+```bash
+# From your PC:
+scp -r /home/nialldorrington/Documents/SO-ARM101 so-101@<PI_IP_ADDRESS>:~/Documents/
+```
+
+### 4. Calibrate Your Arms
 
 You need calibration files for both leader and follower. Run on their respective machines:
 
 ```bash
 # On Follower Pi (connected to follower arm)
 python -c "from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig; \
-f = SO101Follower(SO101FollowerConfig(port='/dev/ttyUSB0', id='black')); \
+f = SO101Follower(SO101FollowerConfig(port='/dev/ttyACM0', id='so_follower')); \
 f.connect(); f.calibrate()"
 
 # On Leader PC (connected to leader arm)
 python -c "from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig; \
-l = SO101Leader(SO101LeaderConfig(port='/dev/ttyUSB0', id='blue')); \
+l = SO101Leader(SO101LeaderConfig(port='/dev/ttyACM0', id='so_leader')); \
 l.connect(); l.calibrate()"
 ```
 
 This creates calibration files in `~/.cache/calibration/`.
 
-### 3. Setup MQTT Broker
+### 5. Setup MQTT Broker
 
 Install Mosquitto or use an existing MQTT broker:
 
@@ -47,23 +75,23 @@ sudo apt install mosquitto mosquitto-clients
 sudo systemctl start mosquitto
 ```
 
-### 4. Configure Scripts
+### 6. Configure Scripts
 
 Edit the configuration values at the top of each script:
 
 **scripts/follower_mqtt_controller.py** (run on Pi):
 ```python
-FOLLOWER_PORT = "/dev/ttyUSB0"           # Your follower serial port
-FOLLOWER_ID = "black"                     # Your calibration ID
-MQTT_BROKER = "192.168.1.100"            # Your MQTT broker IP
+FOLLOWER_PORT = "/dev/ttyACM0"           # Your follower serial port
+FOLLOWER_ID = "so_follower"                     # Your calibration ID
+MQTT_BROKER = "192.168.1.107"            # Your MQTT broker IP
 MAX_RELATIVE_TARGET = 20.0               # Jump protection limit
 ```
 
 **scripts/leader_mqtt_sender.py** (run on PC):
 ```python
-LEADER_PORT = "/dev/ttyUSB0"             # Your leader serial port
-LEADER_ID = "blue"                        # Your calibration ID
-MQTT_BROKER = "192.168.1.100"            # Your MQTT broker IP
+LEADER_PORT = "/dev/ttyACM0"             # Your leader serial port
+LEADER_ID = "so_leader"                        # Your calibration ID
+MQTT_BROKER = "192.168.1.107"            # Your MQTT broker IP
 FPS = 60                                  # Control loop frequency
 ```
 
@@ -126,14 +154,21 @@ Move the leader arm - the follower will follow safely with jump protection.
 
 ```
 SO-ARM101/
-├── lerobot/                    # Minimal LeRobot library (~25 files)
-│   ├── robots/                 # Robot control
-│   ├── teleoperators/          # Leader control
-│   ├── motors/                 # Motor/servo drivers
-│   ├── utils/                  # Utilities
-│   └── processor/              # Type definitions
-├── scripts/
-│   ├── follower_mqtt_controller.py    # Run on Pi
-│   └── leader_mqtt_sender.py          # Run on PC
-└── README_MQTT.md
+├── README.md                           # Main project README
+├── README_MQTT.md                      # This file - MQTT teleoperation guide
+├── front-end/                          # Web-based control interface (optional)
+│   ├── index.html
+│   ├── js/
+│   └── models/
+├── lerobot/                            # Full LeRobot library (from GitHub)
+│   ├── robots/                         # Robot implementations
+│   │   └── so_follower/               # SO-ARM101 follower
+│   ├── teleoperators/                  # Teleoperation implementations
+│   │   └── so_leader/                 # SO-ARM101 leader
+│   ├── motors/                         # Motor/servo drivers
+│   ├── cameras/                        # Camera utilities
+│   └── ...                            # Complete LeRobot framework
+└── scripts/                            # Custom MQTT control scripts
+    ├── follower_mqtt_controller.py     # Run on Pi (follower)
+    └── leader_mqtt_sender.py           # Run on PC (leader)
 ```

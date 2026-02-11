@@ -15,6 +15,7 @@
 import abc
 import builtins
 from pathlib import Path
+from typing import Union
 
 import draccus
 
@@ -148,27 +149,53 @@ class Robot(abc.ABC):
         """
         pass
 
-    def _load_calibration(self, fpath: Path | None = None) -> None:
+    def _load_calibration(self, fpath: Union[Path, None] = None) -> None:
         """
         Helper to load calibration data from the specified file.
 
         Args:
-            fpath (Path | None): Optional path to the calibration file. Defaults to `self.calibration_fpath`.
+            fpath (Union[Path, None]): Optional path to the calibration file. Defaults to `self.calibration_fpath`.
         """
+        import json
+        
         fpath = self.calibration_fpath if fpath is None else fpath
-        with open(fpath) as f, draccus.config_type("json"):
-            self.calibration = draccus.load(dict[str, MotorCalibration], f)
+        
+        # Check if file exists and is not empty
+        if not fpath.exists() or fpath.stat().st_size == 0:
+            return  # No calibration file or empty file, will be created during calibration
+        
+        try:
+            with open(fpath) as f:
+                # Load JSON directly and convert to MotorCalibration objects
+                calibration_data = json.load(f)
+                self.calibration = {}
+                for motor_name, motor_dict in calibration_data.items():
+                    self.calibration[motor_name] = MotorCalibration(**motor_dict)
+        except (json.JSONDecodeError, ValueError) as e:
+            # Corrupted calibration file, ignore and will be recreated
+            logging.warning(f"Corrupted calibration file at {fpath}, will be recreated: {e}")
+            return
 
-    def _save_calibration(self, fpath: Path | None = None) -> None:
+    def _save_calibration(self, fpath: Union[Path, None] = None) -> None:
         """
         Helper to save calibration data to the specified file.
 
         Args:
-            fpath (Path | None): Optional path to save the calibration file. Defaults to `self.calibration_fpath`.
+            fpath (Union[Path, None]): Optional path to save the calibration file. Defaults to `self.calibration_fpath`.
         """
+        import json
+        from dataclasses import asdict
+        
         fpath = self.calibration_fpath if fpath is None else fpath
-        with open(fpath, "w") as f, draccus.config_type("json"):
-            draccus.dump(self.calibration, f, indent=4)
+        
+        # Convert calibration dict to JSON-serializable format
+        calibration_data = {}
+        for motor_name, motor_cal in self.calibration.items():
+            calibration_data[motor_name] = asdict(motor_cal)
+        
+        # Save as JSON directly (bypasses draccus Python 3.13 bug)
+        with open(fpath, "w") as f:
+            json.dump(calibration_data, f, indent=4)
 
     @abc.abstractmethod
     def configure(self) -> None:

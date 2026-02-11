@@ -32,19 +32,19 @@ class FollowerSafetyController:
     
     def __init__(
         self,
-        follower_port: str,
-        follower_id: str,
-        mqtt_broker: str,
+        follower_port: str = "/dev/ttyACM0",
+        follower_id: str = "so_follower",
+        mqtt_broker: str = "192.168.1.107",
         mqtt_port: int = 1883,
-        mqtt_topic: str = "so101/follower/target",
+        mqtt_topic: str = "watchman_robotarm/so-101",
         max_relative_target: float = 20.0,
         use_degrees: bool = False,
     ):
         """
         Args:
-            follower_port: Serial port for follower arm (e.g., "/dev/ttyUSB0")
-            follower_id: ID for calibration file (e.g., "black")
-            mqtt_broker: MQTT broker address (e.g., "192.168.1.100")
+            follower_port: Serial port for follower arm (e.g., "/dev/ttyACM0")
+            follower_id: ID for calibration file (e.g., "so_follower")
+            mqtt_broker: MQTT broker address (e.g., "192.168.1.107")
             mqtt_port: MQTT broker port (default: 1883)
             mqtt_topic: MQTT topic to subscribe to for targets
             max_relative_target: Maximum position jump per step (degrees or normalized units)

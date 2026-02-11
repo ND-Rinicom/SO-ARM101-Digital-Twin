@@ -28,19 +28,19 @@ class LeaderMQTTSender:
     
     def __init__(
         self,
-        leader_port: str,
-        leader_id: str,
-        mqtt_broker: str,
+        leader_port: str = "/dev/ttyACM0",
+        leader_id: str = "so_leader",
+        mqtt_broker: str = "192.168.1.107",
         mqtt_port: int = 1883,
-        mqtt_topic: str = "so101/follower/target",
+        mqtt_topic: str = "watchman_robotarm/so-101",
         fps: int = 60,
         use_degrees: bool = False,
     ):
         """
         Args:
-            leader_port: Serial port for leader arm (e.g., "/dev/ttyUSB0")
-            leader_id: ID for calibration file (e.g., "blue")
-            mqtt_broker: MQTT broker address (e.g., "192.168.1.100")
+            leader_port: Serial port for leader arm (e.g., "/dev/ttyACM0")
+            leader_id: ID for calibration file (e.g., "so_leader")
+            mqtt_broker: MQTT broker address (e.g., "192.168.1.107")
             mqtt_port: MQTT broker port (default: 1883)
             mqtt_topic: MQTT topic to publish targets to
             fps: Target control loop frequency
@@ -153,13 +153,13 @@ class LeaderMQTTSender:
 def main():
     """Main entry point"""
     # Configuration - EDIT THESE VALUES
-    LEADER_PORT = "/dev/ttyUSB0"             # Serial port for leader arm
-    LEADER_ID = "blue"                        # Calibration file ID
-    MQTT_BROKER = "192.168.1.100"            # MQTT broker IP address
-    MQTT_PORT = 1883                          # MQTT broker port
-    MQTT_TOPIC = "so101/follower/target"     # MQTT topic to publish to
-    FPS = 60                                  # Control loop frequency
-    USE_DEGREES = False                       # Use degrees or normalized range
+    LEADER_PORT = "/dev/ttyACM0"                # Serial port for leader arm
+    LEADER_ID = "so_leader"                     # Calibration file ID
+    MQTT_BROKER = "192.168.1.107"               # MQTT broker IP address
+    MQTT_PORT = 1883                            # MQTT broker port
+    MQTT_TOPIC = "watchman_robotarm/so-101"     # MQTT topic to publish to
+    FPS = 60                                    # Control loop frequency
+    USE_DEGREES = False                         # Use degrees or normalized range
     
     # Create and start sender
     sender = LeaderMQTTSender(

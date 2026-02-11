@@ -15,6 +15,7 @@
 import abc
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Union
 
 import draccus
 
@@ -22,7 +23,7 @@ import draccus
 @dataclass(kw_only=True)
 class RobotConfig(draccus.ChoiceRegistry, abc.ABC):
     # Allows to distinguish between different robots of the same type
-    id: str | None = None
+    id: Union[str, None] = None
     # Directory to store calibration file
     calibration_dir: Path | None = None
 
