@@ -169,11 +169,11 @@ class FollowerSafetyController:
 def main():
     """Main entry point"""
     # Configuration - EDIT THESE VALUES
-    FOLLOWER_PORT = "/dev/ttyUSB0"           # Serial port for follower arm
-    FOLLOWER_ID = "black"                     # Calibration file ID
-    MQTT_BROKER = "192.168.1.100"            # MQTT broker IP address
+    FOLLOWER_PORT = "/dev/ttyACM0"           # Serial port for follower arm
+    FOLLOWER_ID = "so_follower"                     # Calibration file ID
+    MQTT_BROKER = "192.168.1.107"            # MQTT broker IP address
     MQTT_PORT = 1883                          # MQTT broker port
-    MQTT_TOPIC = "so101/follower/target"     # MQTT topic to subscribe to
+    MQTT_TOPIC = "watchman_robotarm/so-101"     # MQTT topic to subscribe to
     MAX_RELATIVE_TARGET = 20.0               # Max jump per step (degrees or normalized)
     USE_DEGREES = False                       # Use degrees or normalized range
     

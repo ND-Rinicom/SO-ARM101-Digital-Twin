@@ -47,7 +47,30 @@ Copy the project from PC to Raspberry Pi:
 scp -r /home/nialldorrington/Documents/SO-ARM101 so-101@<PI_IP_ADDRESS>:~/Documents/
 ```
 
-### 4. Calibrate Your Arms
+### 4. Find Serial Port
+
+Before calibrating, identify which port your SO-ARM is connected to:
+
+**Linux (PC and Raspberry Pi):**
+```bash
+# List all serial devices
+ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
+
+# Or use Python to list ports
+python -m serial.tools.list_ports
+
+# Watch for new devices when plugging in the arm
+dmesg | grep -i tty | tail
+```
+
+**Common port names:**
+- `/dev/ttyACM0` - Most common for SO-ARM
+- `/dev/ttyUSB0` - If using USB-to-serial adapter
+- `/dev/ttyACM1` - If multiple devices connected
+
+**Tip:** Unplug the arm, run `ls /dev/ttyACM*`, then plug it back in and run the command again to see which device appears.
+
+### 5. Calibrate Your Arms
 
 You need calibration files for both leader and follower. Run on their respective machines:
 
@@ -65,7 +88,7 @@ l.connect(); l.calibrate()"
 
 This creates calibration files in `~/.cache/calibration/`.
 
-### 5. Setup MQTT Broker
+### 6. Setup MQTT Broker
 
 Install Mosquitto or use an existing MQTT broker:
 
@@ -75,7 +98,7 @@ sudo apt install mosquitto mosquitto-clients
 sudo systemctl start mosquitto
 ```
 
-### 6. Configure Scripts
+### 7. Configure Scripts
 
 Edit the configuration values at the top of each script:
 
