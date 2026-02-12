@@ -12,6 +12,7 @@ document.body.appendChild(renderer.domElement);
 // --- GLOBALS ---
 let model;
 let wireframeMode = false;
+let jointAxisConfig = null; // Joint axis configuration loaded from JSON
 
 const bonesByName = new Map();
 const objectsByName = new Map(); // For models without bones
@@ -38,6 +39,23 @@ const wireframeOutlineMaterial = new THREE.LineBasicMaterial({
 });
 
 // --- LOADING MODELS ---
+
+// Load joint axis configuration from JSON file
+async function loadJointConfig(configPath) {
+  try {
+    const response = await fetch(configPath);
+    if (!response.ok) {
+      console.warn(`Joint config not found: ${configPath} (status: ${response.status})`);
+      return false;
+    }
+    jointAxisConfig = await response.json();
+    console.log("Loaded joint axis configuration:", jointAxisConfig);
+    return true;
+  } catch (error) {
+    console.error("Error loading joint config:", error);
+    return false;
+  }
+}
 
 // Add the outlines for our ghost mesh
 function addOutlineForMesh(mesh, material = outlineMaterial, edgeThresholdAngle = EDGE_THRESHOLD_ANGLE) {
@@ -75,24 +93,30 @@ function getMaterial() {
   }
 }
 
-function loadModel(modelPath) {
+function loadModel(modelBasePath) {
   const loader = new GLTFLoader();
-  console.log("Loading model:", modelPath);
+  console.log("Loading model:", modelBasePath);
+
+  // Add extensions for model and config files
+  const modelPath = modelBasePath + '.glb';
+  const configPath = modelBasePath + '.json';
 
   return new Promise((resolve, _reject) => {
-    // Check if model exists first
-    fetch(modelPath, { method: 'HEAD' })
-      .then(response => {
-        if (!response.ok) {
-          console.warn(`Model not found: ${modelPath} (status: ${response.status})`);
-          resolve(false);
-          return;
-        }
+    // Load joint config first
+    loadJointConfig(configPath).then(() => {
+      // Check if model exists first
+      fetch(modelPath, { method: 'HEAD' })
+        .then(response => {
+          if (!response.ok) {
+            console.warn(`Model not found: ${modelPath} (status: ${response.status})`);
+            resolve(false);
+            return;
+          }
 
-        // Model exists, proceed with loading
-        loader.load(
-          modelPath,
-          (gltf) => {
+          // Model exists, proceed with loading
+          loader.load(
+            modelPath,
+            (gltf) => {
             model = gltf.scene;
             
             // Apply custom position offset
@@ -157,18 +181,43 @@ function loadModel(modelPath) {
         console.warn(`Failed to check model existence: ${modelPath}`, error);
         resolve(false);
       });
+    });
   });
 }
 
 // --- CONFIGURE LOADED MODELS ---
 
-// Set all given joint angles
+// Set all given joint angles using the joint axis configuration
 function setJointAngles(jointAngles) {
-  for (const jointName in jointAngles) {
-    const axes = jointAngles[jointName];
-    for (const axis in axes) {
-      setRotation(jointName, axis, axes[axis]);
-      console.log(`Set joint ${jointName} axis ${axis} to ${axes[axis]} degrees`);
+  // If no joint config loaded, fall back to old behavior
+  if (!jointAxisConfig || !jointAxisConfig.joints) {
+    console.warn("No joint configuration loaded, using fallback method");
+    for (const jointName in jointAngles) {
+      const axes = jointAngles[jointName];
+      for (const axis in axes) {
+        setRotation(jointName, axis, axes[axis]);
+        console.log(`Set joint ${jointName} axis ${axis} to ${axes[axis]} degrees`);
+      }
+    }
+  } else {
+    // Use joint config to automatically determine axis
+    for (const jointName in jointAngles) {
+      // Strip .pos suffix if present
+      const cleanName = jointName.endsWith(".pos") ? jointName.slice(0, -4) : jointName;
+      
+      // Get the axis for this joint from config
+      const axis = jointAxisConfig.joints[cleanName];
+      if (!axis) {
+        console.warn(`No axis configuration found for joint: ${cleanName}`);
+        continue;
+      }
+      
+      // Get the angle value
+      const angle = jointAngles[jointName];
+      
+      // Set the rotation
+      setRotation(cleanName, axis, angle);
+      console.log(`Set joint ${cleanName} axis ${axis} to ${angle} degrees`);
     }
   }
   
@@ -178,6 +227,11 @@ function setJointAngles(jointAngles) {
 
 // Set rotation of a named bone
 function setRotation(jointName, axis, valueDeg) {
+  // Strip ".pos" suffix if present
+  if (jointName.endsWith(".pos")) {
+    jointName = jointName.slice(0, -4);
+  }
+  
   // Try to find bone first, then fall back to regular object
   const bone = bonesByName.get(jointName) || objectsByName.get(jointName);
   if (!bone) {
@@ -253,4 +307,4 @@ function setCameraPosition(zPos = 1) {
 }
 
 // Export what your HTML needs
-export { loadModel, setJointAngles, setRenderMode, setCameraPosition, setModelPosition, setModelRotation, setLighting };
+export { loadModel, loadJointConfig, setJointAngles, setRenderMode, setCameraPosition, setModelPosition, setModelRotation, setLighting };

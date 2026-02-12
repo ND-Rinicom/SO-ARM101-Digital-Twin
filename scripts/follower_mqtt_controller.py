@@ -38,7 +38,7 @@ class FollowerSafetyController:
         mqtt_port: int = 1883,
         mqtt_topic: str = "watchman_robotarm/so-101",
         max_relative_target: float = 20.0,
-        use_degrees: bool = False,
+        use_degrees: bool = True,
     ):
         """
         Args:
@@ -90,15 +90,27 @@ class FollowerSafetyController:
         """
         Called when MQTT target position arrives.
         Applies jump protection and sends safe command to servos.
+        
+        Expects JSON-RPC format: {"method": "set_joint_angles", "id": "...", "params": {"units": "degrees", "joints": {...}}}
         """
         try:
-            # Parse target action
-            target_action = json.loads(msg.payload.decode())
+            # Parse incoming message
+            message = json.loads(msg.payload.decode())
+            
+            # Validate JSON-RPC format
+            method = message.get("method")
+            if method != "set_joint_angles":
+                logger.warning(f"Unknown method: {method}, skipping")
+                return
+            
+            params = message.get("params", {})
+            joints = params.get("joints", {})
+            # units = params.get("units", "degrees")  # Could use this for conversion
             
             # Extract goal positions (remove .pos suffix)
             goal_pos = {
                 key.removesuffix(".pos"): val 
-                for key, val in target_action.items() 
+                for key, val in joints.items() 
                 if key.endswith(".pos")
             }
             
@@ -175,7 +187,7 @@ def main():
     MQTT_PORT = 1883                          # MQTT broker port
     MQTT_TOPIC = "watchman_robotarm/so-101"     # MQTT topic to subscribe to
     MAX_RELATIVE_TARGET = 20.0               # Max jump per step (degrees or normalized)
-    USE_DEGREES = False                       # Use degrees or normalized range
+    USE_DEGREES = True                       # Use degrees or normalized range
     
     # Create and start controller
     controller = FollowerSafetyController(

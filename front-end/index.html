@@ -35,12 +35,13 @@ Has URL parameters to configure model and positions
 const url = new URL(window.location.href);
 const urlParams = new URLSearchParams(url.search);
 
-// Model name
-let modelName = 'so-101.glb'; // default
+// Model name (base name without extension)
+let modelName = 'so-101'; // default
 if (urlParams.has('model')) {
   modelName = urlParams.get('model');
-  if (!modelName.endsWith('.glb')) {
-    modelName = modelName + '.glb';
+  // Strip .glb extension if provided
+  if (modelName.endsWith('.glb')) {
+    modelName = modelName.slice(0, -4);
   }
 }
 // Model position (xPos, yPos, zPos)
@@ -66,7 +67,7 @@ loadModel('./models/' + modelName).then(modelLoaded => {
     return;
   }
 
-  const jsonRpcService = new JsonRpcService('ws://' + url.hostname + ':9000', 'watchman_robotarm/' + modelName.slice(0, -4));
+  const jsonRpcService = new JsonRpcService('ws://' + url.hostname + ':9000', 'watchman_robotarm/' + modelName);
 
   // Handle inbound method calls (server -> client)
   jsonRpcService.onMethodCalled = function(topic, message) {

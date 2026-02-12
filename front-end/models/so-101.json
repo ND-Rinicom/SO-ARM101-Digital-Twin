@@ -1,0 +1,12 @@
+{
+  "name": "SO-101 Robot Arm",
+  "description": "Joint axis configuration for SO-101 robot arm",
+  "joints": {
+    "shoulder_pan": "y",
+    "shoulder_lift": "x",
+    "elbow_flex": "x",
+    "wrist_flex": "x",
+    "wrist_roll": "y",
+    "gripper": "z"
+  }
+}

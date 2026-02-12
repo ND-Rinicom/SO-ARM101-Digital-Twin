@@ -195,3 +195,29 @@ SO-ARM101/
     ├── follower_mqtt_controller.py     # Run on Pi (follower)
     └── leader_mqtt_sender.py           # Run on PC (leader)
 ```
+
+## MQTT Message Format
+
+All messages use JSON-RPC 2.0 format:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "unique-message-id",
+  "method": "set_joint_angles",
+  "timestamp": "2026-01-14T15:27:05Z",
+  "params": {
+    "units": "degrees",
+    "joints": {
+      "shoulder_pan.pos": 0,
+      "shoulder_lift.pos": 0,
+      "elbow_flex.pos": 0,
+      "wrist_flex.pos": 0,
+      "wrist_roll.pos": 0,
+      "gripper.pos": 0
+    }
+  }
+}
+```
+
+The `.pos` suffix is automatically stripped by the follower before applying joint angles.
