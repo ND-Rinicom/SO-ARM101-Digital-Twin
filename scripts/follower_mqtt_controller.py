@@ -70,6 +70,46 @@ def start_ustreamer(
     return proc
 
 
+def start_http_server(
+    port: int = 8001,
+    directory: str = "~",
+) -> subprocess.Popen:
+    """
+    Start Python HTTP server as a background process.
+    Returns a Popen handle so we can terminate it on exit.
+    """
+    directory = Path(directory).expanduser()
+    
+    cmd = [
+        "python3",
+        "-m",
+        "http.server",
+        str(port),
+        "--directory",
+        str(directory),
+    ]
+
+    logger.info("Starting HTTP server: %s", " ".join(cmd))
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+
+    time.sleep(0.2)
+    if proc.poll() is not None:
+        out = ""
+        try:
+            out = (proc.stdout.read() or "").strip() if proc.stdout else ""
+        except Exception:
+            pass
+        raise RuntimeError(f"HTTP server exited immediately.\nOutput:\n{out}")
+    logger.info("HTTP server started (pid=%s). Serving: http://<pi-ip>:%d/", proc.pid, port)
+    return proc
+
+
 def stop_process(proc: Optional[subprocess.Popen], name: str) -> None:
     if not proc:
         return
@@ -88,7 +128,7 @@ def stop_process(proc: Optional[subprocess.Popen], name: str) -> None:
 class FollowerSafetyController:
     """
     MQTT-based follower controller with local jump protection.
-    Optionally starts ustreamer for a webcam.
+    Optionally starts ustreamer for a webcam and HTTP server for file serving.
     """
 
     def __init__(
@@ -104,6 +144,8 @@ class FollowerSafetyController:
         camera_host: str = "0.0.0.0",
         camera_port: int = 8080,
         camera_resolution: str = "640x480",
+        http_server_port: Optional[int] = None,
+        http_server_dir: str = "~",
     ):
         # Initialize follower
         follower_config = SO101FollowerConfig(
@@ -121,6 +163,11 @@ class FollowerSafetyController:
         self.camera_port = camera_port
         self.camera_resolution = camera_resolution
         self._camera_proc: Optional[subprocess.Popen] = None
+
+        # HTTP server config
+        self.http_server_port = http_server_port
+        self.http_server_dir = http_server_dir
+        self._http_server_proc: Optional[subprocess.Popen] = None
 
         # Initialize MQTT
         self.mqtt_client = mqtt.Client()
@@ -194,6 +241,13 @@ class FollowerSafetyController:
                     resolution=self.camera_resolution,
                 )
 
+            # Optional HTTP server
+            if self.http_server_port:
+                self._http_server_proc = start_http_server(
+                    port=self.http_server_port,
+                    directory=self.http_server_dir,
+                )
+
             # Connect to follower arm
             logger.info(f"Connecting to follower arm on {self.follower.config.port}...")
             self.follower.connect()
@@ -233,11 +287,12 @@ class FollowerSafetyController:
             self.is_running = False
 
         stop_process(self._camera_proc, "ustreamer")
+        stop_process(self._http_server_proc, "HTTP server")
         logger.info("Follower controller stopped")
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="SO-ARM101 follower (MQTT) with optional ustreamer camera.")
+    p = argparse.ArgumentParser(description="SO-ARM101 follower (MQTT) with optional ustreamer camera and HTTP server.")
     p.add_argument("--follower-port", default="/dev/ttyACM0")
     p.add_argument("--follower-id", default="so_follower")
     p.add_argument("--mqtt-broker", default="192.168.1.107")
@@ -252,6 +307,12 @@ def parse_args():
     p.add_argument("--cam-host", default="0.0.0.0")
     p.add_argument("--cam-port", type=int, default=8080)
     p.add_argument("--cam-res", dest="camera_resolution", default="640x480")
+
+    # Optional HTTP server
+    p.add_argument("--http-server", dest="http_server_port", type=int, default=None,
+                   help="Enable Python HTTP server on this port, e.g. 8001")
+    p.add_argument("--http-dir", dest="http_server_dir", default="~",
+                   help="Directory to serve via HTTP server (default: ~)")
     return p.parse_args()
 
 
@@ -270,6 +331,8 @@ def main():
         camera_host=args.cam_host,
         camera_port=args.cam_port,
         camera_resolution=args.camera_resolution,
+        http_server_port=args.http_server_port,
+        http_server_dir=args.http_server_dir,
     )
 
     controller.start()
