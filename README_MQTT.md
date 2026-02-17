@@ -4,10 +4,9 @@
 
 ## Features
 
-- **Jump Protection**: Follower checks safety locally (no network latency)
+- **Lightweight**: ~770KB of code (vs 5-10MB+ full LeRobot)
+- **Jump Protection**: Follower checks safety locally
 - **Calibration Support**: Uses standard LeRobot calibration files
-- **Robust**: Works even with slow/unreliable networks  
-- **Minimal**: ~130KB (perfect for Raspberry Pi with limited space)
 
 ## Setup
 

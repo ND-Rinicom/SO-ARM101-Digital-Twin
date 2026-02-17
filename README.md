@@ -1,3 +1,6 @@
+# Notes
+- Could potentianly implement a "hybrid" arm model that takes best of both from follower and leader.
+
 # TO DO
 - Improve README setup instructions
 - Finish implementing 3d manipulation of frontend camera (maybe add moving of arm controls aswell)
@@ -9,6 +12,7 @@
 - Finish README & add improved comments
 - Report writing: Finish new diagrams & describe project structure, justifying decisions.
 - Maybe adjust clamping to be less strict if safe to do so
+- windows support
 
 
 # Next steps for project 
