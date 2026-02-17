@@ -4,6 +4,7 @@ MQTT Leader Sender for SO-ARM101
 Run this on the PC connected to the leader arm
 """
 
+import argparse
 import json
 import logging
 import sys
@@ -163,28 +164,32 @@ class LeaderMQTTSender:
             logger.info("Leader sender stopped")
 
 
+def parse_args():
+    p = argparse.ArgumentParser(description="SO-ARM101 leader sender (MQTT).")
+    p.add_argument("--leader-port", default="/dev/ttyACM0")
+    p.add_argument("--leader-id", default="so_leader")
+    p.add_argument("--mqtt-broker", default="192.168.1.107")
+    p.add_argument("--mqtt-port", type=int, default=1883)
+    p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101")
+    p.add_argument("--fps", type=int, default=60)
+    p.add_argument("--use-degrees", action="store_true", default=True)
+    return p.parse_args()
+
+
 def main():
     """Main entry point"""
-    # Configuration - EDIT THESE VALUES
-    LEADER_PORT = "/dev/ttyACM0"                # Serial port for leader arm
-    LEADER_ID = "so_leader"                     # Calibration file ID
-    MQTT_BROKER = "192.168.1.107"               # MQTT broker IP address
-    MQTT_PORT = 1883                            # MQTT broker port
-    MQTT_TOPIC = "watchman_robotarm/so-101"     # MQTT topic to publish to
-    FPS = 60                                    # Control loop frequency
-    USE_DEGREES = True                          # Use degrees or normalized range
-    
-    # Create and start sender
+    args = parse_args()
+
     sender = LeaderMQTTSender(
-        leader_port=LEADER_PORT,
-        leader_id=LEADER_ID,
-        mqtt_broker=MQTT_BROKER,
-        mqtt_port=MQTT_PORT,
-        mqtt_topic=MQTT_TOPIC,
-        fps=FPS,
-        use_degrees=USE_DEGREES,
+        leader_port=args.leader_port,
+        leader_id=args.leader_id,
+        mqtt_broker=args.mqtt_broker,
+        mqtt_port=args.mqtt_port,
+        mqtt_topic=args.mqtt_topic,
+        fps=args.fps,
+        use_degrees=args.use_degrees,
     )
-    
+
     sender.start()
 
 
