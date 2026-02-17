@@ -298,6 +298,8 @@ function setModelRotation(xRad = 0, yRad = 0, zRad = 0) {
 
 // --- CAMERA AND LIGHTING ---
 
+const cameraTarget = new THREE.Vector3(0, 0, 0);
+
 // Lighting setup
 const light = new THREE.DirectionalLight(0xffffff, 3);
 light.position.set(-1, 2, 4);
@@ -310,13 +312,49 @@ function setLighting(color = 0xffffff, intensity = 3, x = -1, y = 2, z = 4) {
   light.position.set(x, y, z);
 }
 
-// Set camera position (x, y, z) and keep focus on model center
-function setCameraPosition(x = 0, y = 0, z = 1) {
-  camera.position.set(x, y, z);
-  light.position.set(x, y, z);
-  camera.lookAt(modelPositionOffset.x, modelPositionOffset.y, modelPositionOffset.z);
+function renderScene() {
   renderer.render(scene, camera);
 }
 
+function setCameraTarget(x = 0, y = 0, z = 0, render = true) {
+  cameraTarget.set(x, y, z);
+  camera.lookAt(cameraTarget);
+  if (render) {
+    renderScene();
+  }
+}
+
+// Set camera position (x, y, z) and keep focus on model center
+function setCameraPosition(x = 0, y = 0, z = 1, render = true) {
+  camera.position.set(x, y, z);
+  light.position.set(x, y, z);
+  camera.lookAt(cameraTarget);
+  if (render) {
+    renderScene();
+  }
+}
+
+function setCameraPose(x = 0, y = 0, z = 1, targetX = 0, targetY = 0, targetZ = 0) {
+  cameraTarget.set(targetX, targetY, targetZ);
+  camera.position.set(x, y, z);
+  light.position.set(x, y, z);
+  camera.lookAt(cameraTarget);
+  renderScene();
+}
+
 // Export what your HTML needs
-export { loadModel, loadJointConfig, setJointAngles, setRenderMode, setCameraPosition, setModelPosition, setModelRotation, setLighting };
+export {
+  loadModel,
+  loadJointConfig,
+  setJointAngles,
+  setRenderMode,
+  setCameraPosition,
+  setCameraTarget,
+  setCameraPose,
+  setModelPosition,
+  setModelRotation,
+  setLighting,
+  renderScene,
+  camera,
+  renderer
+};

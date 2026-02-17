@@ -13,8 +13,8 @@
 ### 1. Create Virtual Environment (Recommended)
 On both PC and Raspberry Pi create and activate venv:
 ```bash
-python3 -m venv ~/lerobot-venv
-source ~/lerobot-venv/bin/activate
+python3 -m venv ./lerobot-venv
+source ./lerobot-venv/bin/activate
 ```
 
 ### 2. Install Dependencies
