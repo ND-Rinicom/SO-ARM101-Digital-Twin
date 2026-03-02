@@ -1,7 +1,4 @@
-// Model position (xPos, yPos, zPos)
-const xPos = urlParams.has('xPos') ? parseFloat(urlParams.get('xPos')) : 0;
-const yPos = urlParams.has('yPos') ? parseFloat(urlParams.get('yPos')) : 0;
-const zPos = urlParams.has('zPos') ? parseFloat(urlParams.get('zPos')) : 0;
+
 <!-- 
 index.html
 Has URL parameters to configure model and positions
@@ -58,6 +55,11 @@ Has URL parameters to configure model and positions
 // Extract parameters from URL
 const url = new URL(window.location.href);
 const urlParams = new URLSearchParams(url.search);
+
+// Model position (xPos, yPos, zPos)
+const xPos = urlParams.has('xPos') ? parseFloat(urlParams.get('xPos')) : 0;
+const yPos = urlParams.has('yPos') ? parseFloat(urlParams.get('yPos')) : 0;
+const zPos = urlParams.has('zPos') ? parseFloat(urlParams.get('zPos')) : 0;
 
 // Debug flag from URL
 const debugMode = urlParams.has('debug') && (urlParams.get('debug') === '1' || urlParams.get('debug') === 'true');
