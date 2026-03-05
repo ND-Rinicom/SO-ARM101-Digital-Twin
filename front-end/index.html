@@ -169,12 +169,12 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
   // Set different colors and opacities for each model (customizable via URL)
   if (followerLoaded) {
     console.log('Follower model '+ modelName +' loaded successfully');
-    setModelColor('follower', followerColor);
+    setModelColor('follower', 0xff0000); // Start with red to indicate waiting for data
     setModelTransparency('follower', followerOpacity);
   }
   if (leaderLoaded) {
     console.log('Leader model '+ modelName +' loaded successfully');
-    setModelColor('leader', leaderColor);
+    setModelColor('leader', 0xff0000); // Start with red to indicate waiting for data
     setModelTransparency('leader', leaderOpacity);
   }
 
@@ -187,8 +187,8 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
     cameraZPos
   });
 
-  let followerIsRed = false;
-  let leaderIsRed = false;
+  let followerIsRed = true;
+  let leaderIsRed = true;
   let lastFollowerTimestamp = null;
   let lastLeaderTimestamp = null;
 
@@ -202,7 +202,9 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
         result: jsonRpcService.clientId
       });
     } else if (method === "set_follower_joint_angles" && leaderLoaded) {
+      console.log('Received follower joint angles message:', message);
       const joints = message.params?.joints || {};
+      console.log('Received leader joint angles:', joints);
       const timestamp = Date.parse(message.timestamp);
       lastLeaderTimestamp = timestamp;
       setJointAngles(joints, 'leader');

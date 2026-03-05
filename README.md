@@ -9,15 +9,13 @@
 - Fix physical wrist roll on follower
 - Amend blender model as wrist pitch is at an angle
 - throttled sending and reciving of non movement (4 a seccond)
-
+- Add basic queue to prioritise instructions over video
 
 # Problems
 - Currently if follower arm dies we will keep and brocast the last known position but this probably differs due to weights of the arm
 
 # TO DO
-- Re look at indext.html params
 - Make throttleing an adjustable value
-- Add basic queue to prioritise instructions over video
 - Add easier to read error logging.
 - Add talked about #? method decleration in front end.
 - ///Improve wireframe of the model on front end

@@ -286,6 +286,8 @@ function setRotation(jointName, axis, valueDeg, modelName) {
   if (jointName.endsWith(".pos")) {
     jointName = jointName.slice(0, -4);
   }
+
+  console.log(`Setting rotation for ${modelName} - Joint: ${jointName}, Axis: ${axis}, Value: ${valueDeg} degrees`);
   
   // Bones only (models always have bones)
   const bone = bonesByModelName[modelName].get(jointName);

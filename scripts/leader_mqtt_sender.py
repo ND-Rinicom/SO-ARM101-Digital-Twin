@@ -43,7 +43,7 @@ class LeaderMQTTSender:
         Args:
             leader_port: Serial port for leader arm (e.g., "/dev/ttyACM0")
             leader_id: ID for calibration file (e.g., "so_leader")
-            mqtt_broker: MQTT broker address (e.g., "192.168.1.107")
+            mqtt_broker: MQTT broker address (e.g., "0.0.0.0")
             mqtt_port: MQTT broker port (default: 1883)
             mqtt_topic: MQTT topic to publish targets to
             fps: Target control loop frequency
