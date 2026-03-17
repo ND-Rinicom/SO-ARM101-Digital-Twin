@@ -31,15 +31,28 @@ function getZoomScale(radius, config) {
 export function initCameraControls({
   jsonRpcService,
   modelName,
-  cameraZPos = 1,
   zoomConfig = {},
+  initialCameraPosition = { x: 0, y: 0, z: 0 },
   initialTarget = { x: 0, y: 0, z: 0 }
 } = {}) {
   const config = { ...DEFAULTS, ...zoomConfig };
   const target = new THREE.Vector3(initialTarget.x, initialTarget.y, initialTarget.z);
 
+  const cameraPosition = new THREE.Vector3(
+    initialCameraPosition.x,
+    initialCameraPosition.y,
+    initialCameraPosition.z
+  );
+
   setCameraTarget(target.x, target.y, target.z, false);
-  setCameraPose(0, 0, cameraZPos, target.x, target.y, target.z);
+  setCameraPose(
+    cameraPosition.x,
+    cameraPosition.y,
+    cameraPosition.z,
+    target.x,
+    target.y,
+    target.z
+  );
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(target);

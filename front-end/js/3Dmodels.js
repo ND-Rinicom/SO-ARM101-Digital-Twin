@@ -30,9 +30,6 @@ const initialRotationsByModelName = {
   leader: new Map()
 };
 
-let modelPositionOffset = { x: 0, y: 0, z: 0 }; // Configurable model position offset
-let modelRotationOffset = { x: 0, y: Math.PI, z: 0 }; // Configurable model rotation offset (default 180° on X)
-
 const outlineMap = new WeakMap(); // mesh -> lineSegments
 
 const OUTLINE_COLOR = 0x000000;
@@ -135,12 +132,6 @@ function loadModel(modelBasePath, modelName = 'follower') {
             (gltf) => {
             const model = gltf.scene;
             models[modelName] = model;
-            
-            // Apply custom position offset
-            model.position.add(new THREE.Vector3(modelPositionOffset.x, modelPositionOffset.y, modelPositionOffset.z));
-            
-            // Apply custom rotation offset
-            model.rotation.set(modelRotationOffset.x, modelRotationOffset.y, modelRotationOffset.z);
 
             // Slightly scale the leader model to reduce z-fighting when both models overlap
             if (modelName === 'leader') {
@@ -319,34 +310,6 @@ function setRenderMode(wireframe = false) {
   }
 }
 
-// Set model position offset (call before loadModel)
-function setModelPosition(x = 0, y = 0, z = 0) {
-  modelPositionOffset = { x, y, z };
-  
-  // If models already loaded, update their positions
-  for (const modelName in models) {
-    const model = models[modelName];
-    if (model) {
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x + x, -center.y + y, -center.z + z);
-    }
-  }
-}
-
-// Set model rotation offset in radians (call before loadModel)
-function setModelRotation(xRad = 0, yRad = 0, zRad = 0) {
-  modelRotationOffset = { x: xRad, y: yRad, z: zRad };
-  
-  // If models already loaded, update their rotations
-  for (const modelName in models) {
-    const model = models[modelName];
-    if (model) {
-      model.rotation.set(xRad, yRad, zRad);
-    }
-  }
-}
-
 // Set the color of a specific model (hex color)
 function setModelColor(modelName, color) {
   if (modelName !== 'follower' && modelName !== 'leader') {
@@ -438,8 +401,6 @@ export {
   setRenderMode,
   setCameraTarget,
   setCameraPose,
-  setModelPosition,
-  setModelRotation,
   setModelColor,
   setModelTransparency,
   setLighting,

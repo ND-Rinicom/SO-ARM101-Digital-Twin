@@ -8,8 +8,8 @@ Has URL parameters to configure model and positions
 - leaderColor:        Hex color for leader model (default: 0xffffff)
 - followerOpacity:    Opacity for follower model (default: 0.8)
 - leaderOpacity:      Opacity for leader model (default: 1.0)
-- xPos, yPos, zPos:   Model position coordinates (default: 0.0,0.0,0.0)
-- cameraZPos:         Camera Z position (default: 7.0) 
+- camX, camY, camZ:   Camera position coordinates (default: 0.0,0.0,0.0)
+- camTargetX, camTargetY, camTargetZ: Camera target point (default: 0.0,0.0,0.0)
 - wireframe:          Render mode (0 = ghost, 1 = wireframe) (default: 0)
 - debug:              Enable debug mode to show console logs in an overlay (0 or 1, default: 0)
 -->
@@ -54,7 +54,7 @@ Has URL parameters to configure model and positions
     <script src="js/mqtt/mqtt.min.js"></script>
 	  <script src="js/mqtt/jsonrpcovermqtt.js"></script>
     <script type="module">
-    import { loadModel, unloadModel, setJointAngles, setModelPosition, setRenderMode, setModelColor, setModelTransparency } from '/js/3Dmodels.js';
+    import { loadModel, unloadModel, setJointAngles, setRenderMode, setModelColor, setModelTransparency } from '/js/3Dmodels.js';
     import { initCameraControls } from '/js/cameraControls.js';
 
 // Extract parameters from URL and fragment
@@ -86,10 +86,22 @@ function getAllParams() {
 
 const urlParams = getAllParams();
 
-// Model position (xPos, yPos, zPos)
-const xPos = urlParams.has('xPos') ? parseFloat(urlParams.get('xPos')) : 0;
-const yPos = urlParams.has('yPos') ? parseFloat(urlParams.get('yPos')) : 0;
-const zPos = urlParams.has('zPos') ? parseFloat(urlParams.get('zPos')) : 0;
+const camX = urlParams.has('camX') ? parseFloat(urlParams.get('camX')) : 0;
+const camY = urlParams.has('camY') ? parseFloat(urlParams.get('camY')) : 0;
+const camZ = urlParams.has('camZ') ? parseFloat(urlParams.get('camZ')) : 0;
+
+const camTargetX = urlParams.has('camTargetX') ? parseFloat(urlParams.get('camTargetX')) : 0;
+const camTargetY = urlParams.has('camTargetY') ? parseFloat(urlParams.get('camTargetY')) : 0;
+const camTargetZ = urlParams.has('camTargetZ') ? parseFloat(urlParams.get('camTargetZ')) : 0;
+
+// Camera position/target from URL
+const cameraIsSetViaUrl =
+  urlParams.has('camX') ||
+  urlParams.has('camY') ||
+  urlParams.has('camZ') ||
+  urlParams.has('camTargetX') ||
+  urlParams.has('camTargetY') ||
+  urlParams.has('camTargetZ');
 
 // New parameters for model control
 const loadFollower = !urlParams.has('follower') || urlParams.get('follower') === '1' || urlParams.get('follower') === 'true';
@@ -141,15 +153,10 @@ if (urlParams.has('model')) {
   }
 }
 
-// Camera Z position
-const cameraZPos = urlParams.has('cameraZPos') ? parseFloat(urlParams.get('cameraZPos')) : 1;
-
 // Render mode: wireframe or ghost
 const renderModeParam = urlParams.get('wireframe') || 0;
 
-
 // Apply settings
-setModelPosition(xPos, yPos, zPos);
 setRenderMode(renderModeParam == 1);
 
 // Load models as per parameters
@@ -184,7 +191,8 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
   const cameraController = initCameraControls({
     jsonRpcService,
     modelName,
-    cameraZPos
+    initialCameraPosition: { x: camX, y: camY, z: camZ },
+    initialTarget: { x: camTargetX, y: camTargetY, z: camTargetZ }
   });
 
   let followerIsRed = true;
@@ -217,6 +225,10 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
       return;
     } else if (method === "change-camera") {
       console.log('Received camera update message:', message);
+      if (cameraIsSetViaUrl) {
+        console.log('Camera is set via URL; ignoring remote change-camera updates');
+        return;
+      }
       const params = message.params || {};
       if (params.clientId && params.clientId === jsonRpcService.clientId) {
         console.log('Received camera update from self, ignoring');
@@ -249,6 +261,7 @@ Promise.all(loadPromises).then(([followerLoaded, leaderLoaded]) => {
     if (followerLoaded) {
       if (lastFollowerTimestamp && (now - lastFollowerTimestamp*1000 > 5000)) {
         if (!followerIsRed) {
+          console.log('Follower data is stale, changing color to red');
           setModelColor('follower', 0xff0000);
           followerIsRed = true;
         }
