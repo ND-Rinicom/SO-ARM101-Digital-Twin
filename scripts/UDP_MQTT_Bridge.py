@@ -18,7 +18,7 @@ from gi.repository import Gst
 import paho.mqtt.client as mqtt
 
 # Basic Logging set up
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format= "%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,8 @@ def parse_args():
     p.add_argument("--video-stream", action="store_true", help="Whether to start the video stream handler for the follower camera (UDP port 5000)")
 
     # Video stream parameters
-    p.add_argument("--video-http-host", default="0.0.0.0")
-    p.add_argument("--video-http-port", type=int, default=8000)
+    p.add_argument("--video-rtsp-host", default="0.0.0.0")
+    p.add_argument("--video-rtsp-port", type=int, default=8000)
     p.add_argument("--video-jitter-ms", type=int, default=50)
 
     return p.parse_args()
@@ -266,8 +266,8 @@ def main():
     if args.video_stream:
         video = RtspStreamServer(
             udp_port=args.follower_camera_port,
-            rtsp_host=args.video_http_host,
-            rtsp_port=args.video_http_port,
+            rtsp_host=args.video_rtsp_host,
+            rtsp_port=args.video_rtsp_port,
             mount_point="/camera",
             jitter_ms=args.video_jitter_ms,
         )

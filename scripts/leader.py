@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class LeaderMQTTSender:
     """
-    Reads positions from leader arm and sends them via MQTT to follower.
+    Reads positions from leader arm and sends them via MQTT to bridge and front-end.
     Simple pass-through - all safety logic is on the follower side.
     """
     
@@ -37,7 +37,7 @@ class LeaderMQTTSender:
         mqtt_port: int = 1883,
         mqtt_topic: str = "watchman_robotarm/so-101/leader",
         fps: int = 24,
-        use_degrees: bool = True,
+        idle_send_interval: float = 0.25,
     ):
         """
         Args:
@@ -46,14 +46,14 @@ class LeaderMQTTSender:
             mqtt_broker: MQTT broker address (e.g., "0.0.0.0")
             mqtt_port: MQTT broker port (default: 1883)
             mqtt_topic: MQTT topic to publish targets to
-            fps: Target control loop frequency
-            use_degrees: Use degrees (True) or normalized -100 to 100 range (False)
+            fps: Target control loop frequency (default: 24)
+            idle_send_interval: Send a keepalive target if no change for this many seconds (default: 0.25)
         """
         # Initialize leader
         leader_config = SO101LeaderConfig(
             port=leader_port,
             id=leader_id,
-            use_degrees=use_degrees,
+            use_degrees=True,
         )
         self.leader = SO101Leader(leader_config)
         
@@ -66,6 +66,7 @@ class LeaderMQTTSender:
         self.mqtt_topic = mqtt_topic
         
         self.fps = fps
+        self.idle_send_interval = max(0.0, float(idle_send_interval))
         self.is_running = False
         self.is_connected = False
         
@@ -131,7 +132,7 @@ class LeaderMQTTSender:
                 should_send = False
                 if last_action is None or action != last_action:
                     should_send = True
-                elif (now - last_send_time) >= 0.25:
+                elif (now - last_send_time) >= self.idle_send_interval:
                     should_send = True
 
                 if self.is_connected and should_send:
@@ -142,7 +143,7 @@ class LeaderMQTTSender:
                         "method": "set_follower_joint_angles",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "params": {
-                            "units": "degrees" if self.leader.config.use_degrees else "normalized",
+                            "units": "degrees",
                             "joints": action
                         }
                     }
@@ -184,7 +185,7 @@ def parse_args():
     p.add_argument("--mqtt-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101/leader")
     p.add_argument("--fps", type=int, default=24)
-    p.add_argument("--use-degrees", action="store_true", default=False)
+    p.add_argument("--idle-send-interval", type=float, default=0.25)
     return p.parse_args()
 
 
@@ -199,7 +200,7 @@ def main():
         mqtt_port=args.mqtt_port,
         mqtt_topic=args.mqtt_topic,
         fps=args.fps,
-        use_degrees=args.use_degrees,
+        idle_send_interval=args.idle_send_interval,
     )
 
     sender.start()

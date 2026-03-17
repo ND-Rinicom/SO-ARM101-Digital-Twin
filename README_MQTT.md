@@ -64,7 +64,57 @@ sudo apt install mosquitto mosquitto-clients
 sudo systemctl start mosquitto
 ```
 
-### 7. Set UDP priorities (optional)
+### 7. Setup Web
+To host the front end Web page I used Nginx (https://nginx.org/)
+You probably know how to set up and host a web page yourself but here is a full set up guide anyways:
+
+1) Install and enable nginx 
+
+```bash
+sudo dnf install -y nginx
+sudo systemctl enable --now nginx
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
+```
+
+2) Copy project files to nginx web directory
+
+```bash
+sudo mkdir -p /var/www/so-101
+sudo cp -r /<path to this directory>/front-end/* /var/www/so-101/
+sudo chown -R nginx:nginx /var/www/so-101
+sudo chmod -R 755 /var/www/so-101
+```
+
+3) Set up nginx config 
+
+```bash
+sudo nano /etc/nginx/conf.d/so-101.conf
+```
+
+```
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name so-101-server;
+
+    root /var/www/so-101;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+```
+
+4) Reload nginx and test
+
+    ```
+    sudo nginx -t
+    sudo systemctl reload nginx
+    ```
+
+### 8. Set UDP priorities (optional)
 
 If wanting communication from the laptop (leader) to pi (follower) via UDP its a good idea to set the servo comunications as higher priority than the video stream as video packets droping is much better.
 
@@ -96,14 +146,13 @@ The command above uses `__init__` defaults and does **not** start any camera or 
 
 Optional command-line parameters (with comments):
 ```bash
-python scripts/follower_mqtt_controller.py \
+python scripts/follower_udp_controller.py \
   --follower-port /dev/ttyACM0 \            # Serial port for the follower arm
   --follower-id so_follower \               # Calibration ID for the follower arm
   --mqtt-broker 0.0.0.0 \                   # MQTT broker IP or hostname
   --mqtt-port 1883 \                        # MQTT broker port
   --mqtt-topic watchman_robotarm/so-101 \   # MQTT topic for joint commands
   --max-relative-target 20.0 \              # Max per-step joint change
-  --fps 24 \                                # Target send frequency
   --use-degrees                             # Use degrees instead of radians
 ```
 

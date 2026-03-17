@@ -21,27 +21,16 @@ from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from lerobot.robots.robot import ensure_safe_goal_position
 
 # Basic Logging set up
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format= "%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def parse_args():
-    p = argparse.ArgumentParser(description="SO-ARM101 follower")
-    p.add_argument("--follower-port", default="/dev/ttyACM0")
-    p.add_argument("--follower-id", default="so_follower")
-    p.add_argument("--bridge-ip", default="192.168.1.107")
-    p.add_argument("--bridge-port", type=int, default=9000)
-    p.add_argument("--max-relative-target", type=float, default=20.0)
-    p.add_argument("--use-degrees", action="store_true", default=False)
-
-    # Optional camera
-    p.add_argument("--camera", dest="camera_device", default=None,
-                   help="Enable ustreamer and use this V4L2 device, e.g. /dev/video0")
-    p.add_argument("--cam-res", dest="camera_resolution", default="640x480")
-
-    return p.parse_args()
-
 class Follower:
+    """
+    SO-ARM101 Follower controlled via UDP messages from bridge
+    Run this on the Raspberry Pi connected to the follower arm
+    """
+
     def __init__(
         self,
         follower_port: str = "/dev/ttyACM0",
@@ -49,7 +38,7 @@ class Follower:
         bridge_ip: str = "192.168.1.107",
         bridge_port: int = 9000,
         max_relative_target: float = 20.0,
-        use_degrees: bool = True,
+        idle_send_interval: float = 0.25,
         follower_feedback: bool = True,
     ):
         # Initialize follower
@@ -57,7 +46,7 @@ class Follower:
             port=follower_port,
             id=follower_id,
             max_relative_target=max_relative_target,
-            use_degrees=use_degrees,
+            use_degrees=True,
         )
         self.follower = SO101Follower(follower_config)
         self.max_relative_target = max_relative_target
@@ -67,6 +56,7 @@ class Follower:
         self.bridge_ip = bridge_ip
         self.bridge_port = bridge_port
         self.follower_feedback = follower_feedback # Whether to send current servo positions back to bridge for frontend display
+        self.idle_send_interval = max(0.0, float(idle_send_interval))
 
         self.is_running = False
 
@@ -106,7 +96,7 @@ class Follower:
             if self.follower_feedback and present_pos is not None:
                 try:
                     self._send_servo_udp(present_pos)
-                    #logger.debug(f"Sent present_pos to bridge: {present_pos}")
+                    logger.debug(f"Sent present_pos to bridge: {present_pos}")
                 except Exception as e:
                     logger.warning("Failed to send present_pos over UDP: %s", e)
 
@@ -147,7 +137,7 @@ class Follower:
 
                 # Periodic send every 0.25s if not already sent due to leader update
                 if self.follower_feedback:
-                    if (now - self.last_send_time) >= 0.25:
+                    if (now - self.last_send_time) >= self.idle_send_interval:
                         try:
                             present_pos = self.follower.bus.sync_read("Present_Position")
                         except Exception as e:
@@ -205,27 +195,25 @@ class Follower:
                     #logger.debug(f"Sent present_pos to bridge: {present_pos}")
                 except Exception as e:
                     logger.warning("Failed to send present_pos over UDP: %s", e)
-            
-                adaptive_steps = {}
-                if present_pos is not None:
-                    for key, g_pos in self.goal_pos.items():
-                        c_pos = present_pos.get(key, g_pos)
-                        diff = abs(g_pos - c_pos)
-                        step = min(max(k * diff, min_step), max_step)
-                        adaptive_steps[key] = step
 
-                    # Build per-joint safe goal positions
-                    safe_goal_pos = {}
-                    for key, g_pos in self.goal_pos.items():
-                        c_pos = present_pos.get(key, g_pos)
-                        # Clamp the movement to the adaptive step
-                        if abs(g_pos - c_pos) > adaptive_steps[key]:
-                            direction = 1 if g_pos > c_pos else -1
-                            safe_goal_pos[key] = c_pos + direction * adaptive_steps[key]
-                        else:
-                            safe_goal_pos[key] = g_pos
+            # Calculate adaptive step sizes based on distance to goal for each joint
+            adaptive_steps = {}
+            for key, g_pos in self.goal_pos.items():
+                c_pos = present_pos.get(key, g_pos)
+                diff = abs(g_pos - c_pos)
+                step = min(max(k * diff, min_step), max_step)
+                adaptive_steps[key] = step
+
+            # Build per-joint safe goal positions
+            safe_goal_pos = {}
+            for key, g_pos in self.goal_pos.items():
+                c_pos = present_pos.get(key, g_pos)
+                # Clamp the movement to the adaptive step
+                if abs(g_pos - c_pos) > adaptive_steps[key]:
+                    direction = 1 if g_pos > c_pos else -1
+                    safe_goal_pos[key] = c_pos + direction * adaptive_steps[key]
                 else:
-                    safe_goal_pos = self.goal_pos
+                    safe_goal_pos[key] = g_pos
 
             # Send safe goal position to follower
             # logger.debug(f"Sending safe_goal_pos to follower: { {f'{motor}.pos': val for motor, val in safe_goal_pos.items()} }")
@@ -236,6 +224,11 @@ class Follower:
 
 
 class CameraStreamer:
+    """
+    Optional GStreamer-based camera streamer that captures video from a V4L2 device,
+    encodes it as H.264, and sends it via UDP to the bridge for frontend display.
+    """
+
     def __init__(self, camera_device: str, camera_resolution: str, bridge_ip: str = "192.168.1.107", follower_camera_port: int = 5000):
         self.camera_device = camera_device
         self.camera_resolution = camera_resolution
@@ -263,8 +256,8 @@ class CameraStreamer:
                 'sync=false', 'async=false'
         ]
 
+        # Loop to continuously run the GStreamer pipeline, restarting if it crashes, until stop_event is set
         while stop_event is None or not stop_event.is_set():
-            # Add timestamp in hh:mm:ss.s format
             t = time.localtime()
             timestamp = f"{t.tm_hour}:{t.tm_min:02}:{t.tm_sec:02}.{int(time.time()%1*10):01}"
             logger.info(f"[{timestamp}] Starting GStreamer H.264 pipeline: {' '.join(gst_cmd)}")
@@ -287,6 +280,22 @@ class CameraStreamer:
                 logger.error(f"Error starting GStreamer pipeline: {e}. Retrying in 2s...")
                 time.sleep(2)
 
+def parse_args():
+    p = argparse.ArgumentParser(description="SO-ARM101 follower")
+    p.add_argument("--follower-port", default="/dev/ttyACM0")
+    p.add_argument("--follower-id", default="so_follower")
+    p.add_argument("--bridge-ip", default="192.168.1.107")
+    p.add_argument("--bridge-port", type=int, default=9000)
+    p.add_argument("--max-relative-target", type=float, default=20.0)
+    p.add_argument("--idle-send-interval", type=float, default=0.25)
+
+    # Optional camera
+    p.add_argument("--camera", dest="camera_device", default=None,
+                   help="Enable ustreamer and use this V4L2 device, e.g. /dev/video0")
+    p.add_argument("--cam-res", dest="camera_resolution", default="640x480")
+
+    return p.parse_args()
+
 def main():
     args = parse_args()
 
@@ -296,7 +305,7 @@ def main():
         bridge_ip=args.bridge_ip,
         bridge_port=args.bridge_port,
         max_relative_target=args.max_relative_target,
-        use_degrees=args.use_degrees,
+        idle_send_interval=args.idle_send_interval,
     )
 
     stop_event = threading.Event()
