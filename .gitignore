@@ -6,6 +6,3 @@ __pycache__/
 .venv/
 venv/
 lerobot-venv/
-
-# Calibration files
-lerobot/calibrations/
