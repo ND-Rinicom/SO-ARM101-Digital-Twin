@@ -82,7 +82,7 @@ class Follower:
             "params": {"joints": {f"{k}.pos": v for k, v in present_pos.items()}},
             "timestamp": time.time(),
         }
-        self._mqtt_client.publish(self.mqtt_topic+"/follower", json.dumps(message), retain=False)
+        self._mqtt_client.publish(self.mqtt_topic+"/follower", json.dumps(message), retain=True)
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
