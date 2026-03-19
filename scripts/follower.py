@@ -39,7 +39,7 @@ class Follower:
         mqtt_broker_port: int = 1883,
         mqtt_topic: str = "watchman_robotarm/so-101",
         max_relative_target: float = 20.0,
-        control_fps: int = 30,
+        control_fps: int = 24,
         idle_send_interval: float = 0.25,
         follower_feedback: bool = True,
     ):
@@ -300,7 +300,7 @@ def parse_args():
     p.add_argument("--mqtt-broker-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101")
     p.add_argument("--max-relative-target", type=float, default=20.0)
-    p.add_argument("--control-fps", type=int, default=30)
+    p.add_argument("--control-fps", type=int, default=24)
     p.add_argument("--idle-send-interval", type=float, default=0.25)
 
     # Optional camera

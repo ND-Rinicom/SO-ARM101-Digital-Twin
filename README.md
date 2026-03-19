@@ -1,4 +1,6 @@
-# SO-101 DIGITAL TWIN 
+# SO-101 DIGITAL TWIN
+
+NOTE: This project has be reverted to an older branch due to the MQTT_to_UDP_Bridge being obsoulute due to Rinicoms Radios working with MQTT. Some previously fixed buggs or complete features may not work, if major issues occour please switch back to the deprecated branch ""
 
 ![Photo of SO-101 Digital Twin Project](docs/img/Project%20Image.png)
 
@@ -14,7 +16,7 @@ You will need:
 - (Optional) Another Host Device for hosting Visual Fusion+ Video wall (Watchman)
 - (NOTE: System could be set up with only one host device that also runs the Visual Fusion+ Video wall, but the set-up guide will assume a seperate device is being used)
 
-This project was made with the goal of taking it down a mineshaft, hench why a seperate Rasberry Pi is connected to the follower SO-101 arm. The mineshaft project had a radio connection between the leader arm and the follower Pi, therefore send/recive from our Host Device using UDP as dropped packets are expected.
+This project was made with the goal of taking it down a mineshaft, hench why a seperate Rasberry Pi is connected to the follower SO-101 arm.
 
 ## Setup 
 For a detailed break down on how to set up the system please follow the setup guide 

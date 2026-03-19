@@ -23,6 +23,6 @@ This is fine and will work to sync and fix the model, but its not ideal and will
 
 The video camera pipeline might want a slight rethink and redesign.
 
-Currently we basicly have a "dumb camera sender" running on the follower Pi which basicly just blasts RTP/H.264 to our UDP_MQTT_Bridge as cheaply as possible. Then the bridge absorbs radio jitter (rtpjitterbuffer), and exposes a stable RTSP endpoint that multiple clients can connect to withough touching the Pi/radio side. 
+Currently we basicly have a "dumb camera sender" running on the follower Pi which basicly just blasts RTP/H.264 to our rtp_to_rtsp_streamer as cheaply as possible. Then the bridge absorbs radio jitter (rtpjitterbuffer), and exposes a stable RTSP endpoint that multiple clients can connect to withough touching the Pi/radio side. 
 
 But this might be a complety unecessary step which could be avoided by the Pi simply hosting its own RTSP, simplifying the system architecture but this depends on system needs.

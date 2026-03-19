@@ -35,7 +35,7 @@ class LeaderMQTTSender:
         leader_id: str = "so_leader",
         mqtt_broker: str = "0.0.0.0",
         mqtt_port: int = 1883,
-        mqtt_topic: str = "watchman_robotarm/so-101/leader",
+        mqtt_topic: str = "watchman_robotarm/so-101",
         fps: int = 24,
         idle_send_interval: float = 0.25,
     ):
@@ -63,7 +63,7 @@ class LeaderMQTTSender:
         self.mqtt_client.on_disconnect = self._on_disconnect
         self.mqtt_broker = mqtt_broker
         self.mqtt_port = mqtt_port
-        self.mqtt_topic = mqtt_topic
+        self.mqtt_topic = mqtt_topic+"/leader"
         
         self.fps = fps
         self.idle_send_interval = max(0.0, float(idle_send_interval))
@@ -181,7 +181,7 @@ def parse_args():
     p.add_argument("--leader-id", default="so_leader")
     p.add_argument("--mqtt-broker", default="0.0.0.0")
     p.add_argument("--mqtt-port", type=int, default=1883)
-    p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101/leader")
+    p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101")
     p.add_argument("--fps", type=int, default=24)
     p.add_argument("--idle-send-interval", type=float, default=0.25)
     return p.parse_args()

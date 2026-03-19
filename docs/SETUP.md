@@ -30,7 +30,9 @@ Unplug the arm, run `ls /dev/ttyACM*`, then plug it back in and run the command 
 Unplug the camera, run `ls /dev/video*`, then plug it back in and run the command again to see which device appears (e.g., `/dev/video0`).
 
 ### 5. Calibrate Your Arms
-You need calibration files for both leader and follower. Run on their respective machines:
+You need calibration files for both leader and follower. Calibration files are stored within `/lerobot/calibrations`.
+
+There should already be calibrations set up in this directory however if there isn't you can set your own buy running the following on their respective machines:
 ```bash
 # On Follower Pi (connected to follower arm)
 python -c "from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig; \
@@ -42,8 +44,6 @@ python -c "from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderC
 l = SO101Leader(SO101LeaderConfig(port='/dev/ttyACM0', id='so_leader')); \
 l.connect(); l.calibrate()"
 ```
-
-This creates calibration files in `lerobot/calibrations/`.
 
 ### 6. Setup MQTT Broker
 Install Mosquitto or use an existing MQTT broker:
@@ -135,97 +135,22 @@ e.g. http://0.0.0.0/index.html?#follower=0&leaderColor=0xFF6984 for a pink leade
 
 If wanting communication from the laptop (leader) to pi (follower) via UDP its a good idea to set the servo comunications as higher priority than the video stream as video packets droping is much better.
 
+Bellow is some tc rules to prioritize the mqtt port over the rtp port. 
+NOTE: the commands below are currenlty for wifi so switch "wlan0" to the appropriate network connection
+
 On the pi cmd 
 ```bash
 # Wipe existing rules
-sudo tc qdisc del dev eth0 root
+sudo tc qdisc del dev wlan0 root
 
 # Rebuild with pfifo on robot band
-sudo tc qdisc add dev eth0 root handle 1: prio
-sudo tc qdisc add dev eth0 parent 1:1 handle 10: pfifo
-sudo tc qdisc add dev eth0 parent 1:2 handle 20: tbf rate 2mbit burst 32kbit latency 50ms
+sudo tc qdisc add dev wlan0 root handle 1: prio
+sudo tc qdisc add dev wlan0 parent 1:1 handle 10: pfifo
+sudo tc qdisc add dev wlan0 parent 1:2 handle 20: tbf rate 2mbit burst 32kbit latency 50ms
 
 # Reapply filters
-sudo tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 \
-    match ip dport 9000 0xffff flowid 1:1
-sudo tc filter add dev eth0 protocol ip parent 1:0 prio 2 u32 \
+sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 1 u32 \
+    match ip dport 1883 0xffff flowid 1:1
+sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 2 u32 \
     match ip dport 5000 0xffff flowid 1:2
 ```
-
-## Usage
-
-### 1. Start Follower Controller (on Raspberry Pi)
-
-```bash
-python scripts/follower_mqtt_controller.py
-```
-The command above uses `__init__` defaults and does **not** start any camera or HTTP server.
-
-Optional command-line parameters (with comments):
-```bash
-python scripts/follower_udp_controller.py \
-  --follower-port /dev/ttyACM0 \            # Serial port for the follower arm
-  --follower-id so_follower \               # Calibration ID for the follower arm
-  --mqtt-broker 0.0.0.0 \                   # MQTT broker IP or hostname
-  --mqtt-port 1883 \                        # MQTT broker port
-  --mqtt-topic watchman_robotarm/so-101 \   # MQTT topic for joint commands
-  --max-relative-target 20.0 \              # Max per-step joint change
-  --use-degrees                             # Use degrees instead of radians
-```
-
-You should see:
-```
-Follower arm connected
-Connected to MQTT broker
-Follower controller started. Waiting for targets...
-```
-
-### 2. Start Leader Sender (on PC)
-```bash
-python scripts/leader_mqtt_sender.py
-```
-The command above uses `__init__` defaults.
-
-Optional command-line parameters (with comments):
-```bash
-python scripts/leader_mqtt_sender.py \
-  --leader-port /dev/ttyACM0 \              # Serial port for the leader arm
-  --leader-id so_leader \                   # Calibration ID for the leader arm
-  --mqtt-broker 192.168.1.107 \             # MQTT broker IP or hostname
-  --mqtt-port 1883 \                        # MQTT broker port
-  --mqtt-topic watchman_robotarm/so-101 \   # MQTT topic for joint commands
-  --fps 24                                  # Control loop frequency (Hz)
-  --use-degrees
-```
-
-You should see:
-```
-Leader arm connected
-Connected to MQTT broker
-Leader sender started at 24 FPS
-Move the leader arm to control the follower
-```
-
-### 3. Open index.html
-Open index.html from the same IP as your front-end nginx server:
-```
-http://<IP_ADDR>/index.html
-```
-Optional query parameters (with comments):
-```
-http://<IP_ADDR>/index.html
-?model="so-101" # Robot model name
-&xPos=0         # Initial X position
-&yPos=0         # Initial Y position
-&zPos=0         # Initial Z position
-&cameraZPos=2   # Camera Z position
-&wireframe=1    # Render in wireframe mode (1 = on, 0 = off)
-```
-You should see:
-Robot arm model at matching the position of your leader arm
-
-### 3. Control!
-
-Move the leader arm - the digital twin and follower will follow safely with jump protection.
-
-
