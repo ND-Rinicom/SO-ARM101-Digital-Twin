@@ -1,5 +1,7 @@
 # SO-101 DIGITAL TWIN 
 
+NOTE: This branch is now deprecated as the UPD_MQTT_Bridge is unecessary as Rinicoms Radio technology works with MQTT
+
 ![Photo of SO-101 Digital Twin Project](docs/img/Project%20Image.png)
 
 This Project was designed over my 4th year student workplacment with Rinicom. If you have any questions about the project that are not answered bellow feel free to reach out to me on my personal email nialldorrington@btinternet.com.
