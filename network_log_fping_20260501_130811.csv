@@ -1,0 +1,4 @@
+Date,Time,Device_Name,IP_Address,Latency_ms,Status
+2026-05-01,13:08:11,Master Radio,192.168.0.102,TIMEOUT,Down
+2026-05-01,13:08:11,Follower Arm Radio,192.168.0.103,TIMEOUT,Down
+2026-05-01,13:08:11,IP Camera Radio,192.168.0.101,TIMEOUT,Down

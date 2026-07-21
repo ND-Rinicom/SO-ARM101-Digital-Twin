@@ -76,3 +76,10 @@ A full guide on the SO-101 robot arms can be found in the README here: https://g
 - NOTE: As of 17/03/2026 the current Rinicom leader arm gripper servo is a little damaged. So far it works fine but has some resistance and a "crunch" when extended around 90°. The servo needed to replace this was identified from the above link as STS3215 Servo 7.4V, 1/147 gear (C046).
 
 - NOTE: As of 18/02/2026 the USB-C port on the follower arm came off and had to be re-soldered. It clearly seems like the original soldering job wasn't great, so be careful with other connections, especially the USB-C port on the leader arm as it's probably the same.
+
+
+## Configure the Radios
+```bash
+ssh root@<ip>
+mosquitto_rr -t airfox_rpc -e airfox_response -m '{"jsonrpc":"2.0","method":"set_tdd_role","params":{"tdd_role":{"tdd_role":0}},"id":"123"}'
+```

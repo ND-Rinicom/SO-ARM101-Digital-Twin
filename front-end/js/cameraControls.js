@@ -8,7 +8,7 @@ const DEFAULTS = {
   scaleAtRadius: 3,
   minScale: 0.02,
   maxScale: 3,
-  zoomSpeed: 0.025,
+  zoomSpeed: 0.005,
   rotateSpeed: 0.6,
   panSpeed: 0.6
 };

@@ -87,7 +87,7 @@ function getAllParams() {
 const urlParams = getAllParams();
 
 const camX = urlParams.has('camX') ? parseFloat(urlParams.get('camX')) : 0;
-const camY = urlParams.has('camY') ? parseFloat(urlParams.get('camY')) : 0;
+const camY = urlParams.has('camY') ? parseFloat(urlParams.get('camY')) : 3;
 const camZ = urlParams.has('camZ') ? parseFloat(urlParams.get('camZ')) : 0;
 
 const camTargetX = urlParams.has('camTargetX') ? parseFloat(urlParams.get('camTargetX')) : 0;
@@ -103,7 +103,7 @@ const cameraIsSetViaUrl =
   urlParams.has('camTargetY') ||
   urlParams.has('camTargetZ');
 
-// New parameters for model control
+// Load follower and leader models by default unless explicitly disabled via URL parameters
 const loadFollower = !urlParams.has('follower') || urlParams.get('follower') === '1' || urlParams.get('follower') === 'true';
 const loadLeader = !urlParams.has('leader') || urlParams.get('leader') === '1' || urlParams.get('leader') === 'true';
 

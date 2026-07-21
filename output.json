@@ -1,0 +1,337 @@
+{
+    "jsonrpc": "2.0",
+    "result": {
+        "profile": {
+            "index": 1,
+            "label": "TDD remote"
+        },
+        "ip_enabled": true,
+        "mqtt": {
+            "topic_prefix": "",
+            "host": "localhost",
+            "client_name_prefix": "foxd",
+            "use_tls_config": true
+        },
+        "udp_routes_in": [],
+        "udp_routes_out": [],
+        "duplex_type": {
+            "duplex_type": 0
+        },
+        "waveform": {
+            "waveform": 4,
+            "disable_preamble_continuous_ofdm": 0
+        },
+        "user_tx_frequency": 1394000000,
+        "user_rx_frequency": 1394000000,
+        "modulation": {
+            "modulation": 2
+        },
+        "code_rate": {
+            "code_rate": 1
+        },
+        "periodic_status_period_ms": 5000,
+        "max_mqtt_requests_s": 10,
+        "tdd_role": {
+            "tdd_role": 1
+        },
+        "mac_enable_reorder": {
+            "mac_enable_reorder": 1
+        },
+        "tdd_remote_timeout": {
+            "tdd_remote_timeout": 20000000
+        },
+        "tdd_remote_beacon_timeout": {
+            "tdd_remote_beacon_timeout": 10000000
+        },
+        "tdd_central_timeout": {
+            "tdd_central_timeout": 1000000000
+        },
+        "aggregation_packets": {
+            "aggregation_packets": 12
+        },
+        "aggregation_beacon_req_packets": {
+            "aggregation_beacon_req_packets": 2
+        },
+        "aggregation_bytes": {
+            "aggregation_bytes": 48000
+        },
+        "beacon_to_unicast_ratio": {
+            "beacon_to_unicast_ratio": 200
+        },
+        "retries": {
+            "retries": 3
+        },
+        "maximum_number_of_remotes": {
+            "maximum_number_of_remotes": 2
+        },
+        "mac_test_behaviour": {
+            "mac_test_behaviour": 0
+        },
+        "mac_quality_config": {
+            "window_ms": 1000,
+            "exp": 1.7999999523162842
+        },
+        "tx_power": 20,
+        "txrx_manual_control": {
+            "txrx_manual_control": 0
+        },
+        "rf_board_tx_enable": {
+            "rf_board_tx_enable": 0
+        },
+        "signal_generator": {
+            "enable_signal_generator": 0,
+            "waveform_signal_generator": 0,
+            "amplitude_signal_generator": 31,
+            "frequency_signal_generator": 0
+        },
+        "antenna_port": {
+            "antenna_port": 1
+        },
+        "enable_retransmissions": {
+            "enable_retransmissions": 0
+        },
+        "set_ad9361_reg": {
+            "address": "0x000",
+            "value": "0x000"
+        },
+        "get_ad9361_reg": {
+            "address": "0x000",
+            "value": "0x000"
+        },
+        "init_struct_rf_chip": {
+            "reference_clk_rate": 40000000,
+            "two_rx_two_tx_mode_enable": 0,
+            "one_rx_one_tx_mode_use_rx_num": 1,
+            "one_rx_one_tx_mode_use_tx_num": 1,
+            "frequency_division_duplex_mode_enable": 1,
+            "frequency_division_duplex_independent_mode_enable": 0,
+            "tdd_use_dual_synth_mode_enable": 0,
+            "tdd_skip_vco_cal_enable": 0,
+            "tx_fastlock_delay_ns": 0,
+            "rx_fastlock_delay_ns": 0,
+            "rx_fastlock_pincontrol_enable": 0,
+            "tx_fastlock_pincontrol_enable": 0,
+            "external_rx_lo_enable": 0,
+            "external_tx_lo_enable": 0,
+            "dc_offset_tracking_update_event_mask": 5,
+            "dc_offset_attenuation_high_range": 6,
+            "dc_offset_attenuation_low_range": 5,
+            "dc_offset_count_high_range": 40,
+            "dc_offset_count_low_range": 50,
+            "split_gain_table_mode_enable": 0,
+            "trx_synthesizer_target_fref_overwrite_hz": 80008000,
+            "qec_tracking_slow_mode_enable": 0,
+            "ensm_enable_pin_pulse_mode_enable": 0,
+            "ensm_enable_txnrx_control_enable": 0,
+            "rx_synthesizer_frequency_hz": 1360000000,
+            "tx_synthesizer_frequency_hz": 1360000000,
+            "tx_lo_powerdown_managed_enable": 1,
+            "rx_path_clock_frequencies": [
+                983040000,
+                245760000,
+                122880000,
+                61440000,
+                30720000,
+                30720000
+            ],
+            "tx_path_clock_frequencies": [
+                983040000,
+                122880000,
+                122880000,
+                61440000,
+                30720000,
+                30720000
+            ],
+            "rf_rx_bandwidth_hz": 3000000,
+            "rf_tx_bandwidth_hz": 3000000,
+            "rx_rf_port_input_select": 0,
+            "tx_rf_port_input_select": 0,
+            "tx_attenuation_mdB": 0,
+            "update_tx_gain_in_alert_enable": 0,
+            "xo_disable_use_ext_refclk_enable": 1,
+            "dcxo_coarse_and_fine_tune": [
+                8,
+                5920
+            ],
+            "clk_output_mode_select": 0,
+            "gc_rx1_mode": 1,
+            "gc_rx2_mode": 1,
+            "gc_adc_large_overload_thresh": 58,
+            "gc_adc_ovr_sample_size": 4,
+            "gc_adc_small_overload_thresh": 47,
+            "gc_dec_pow_measurement_duration": 8192,
+            "gc_dig_gain_enable": 0,
+            "gc_lmt_overload_high_thresh": 800,
+            "gc_lmt_overload_low_thresh": 704,
+            "gc_low_power_thresh": 24,
+            "gc_max_dig_gain": 15,
+            "gc_use_rx_fir_out_for_dec_pwr_meas_enable": 0,
+            "mgc_dec_gain_step": 2,
+            "mgc_inc_gain_step": 2,
+            "mgc_rx1_ctrl_inp_enable": 0,
+            "mgc_rx2_ctrl_inp_enable": 0,
+            "mgc_split_table_ctrl_inp_gain_mode": 0,
+            "agc_adc_large_overload_exceed_counter": 10,
+            "agc_adc_large_overload_inc_steps": 2,
+            "agc_adc_lmt_small_overload_prevent_gain_inc_enable": 0,
+            "agc_adc_small_overload_exceed_counter": 10,
+            "agc_dig_gain_step_size": 4,
+            "agc_dig_saturation_exceed_counter": 3,
+            "agc_gain_update_interval_us": 1000,
+            "agc_immed_gain_change_if_large_adc_overload_enable": 0,
+            "agc_immed_gain_change_if_large_lmt_overload_enable": 0,
+            "agc_inner_thresh_high": 15,
+            "agc_inner_thresh_high_dec_steps": 1,
+            "agc_inner_thresh_low": 12,
+            "agc_inner_thresh_low_inc_steps": 1,
+            "agc_lmt_overload_large_exceed_counter": 10,
+            "agc_lmt_overload_large_inc_steps": 2,
+            "agc_lmt_overload_small_exceed_counter": 10,
+            "agc_outer_thresh_high": 5,
+            "agc_outer_thresh_high_dec_steps": 2,
+            "agc_outer_thresh_low": 18,
+            "agc_outer_thresh_low_inc_steps": 2,
+            "agc_attack_delay_extra_margin_us": 1,
+            "agc_sync_for_gain_counter_enable": 0,
+            "fagc_dec_pow_measuremnt_duration": 32,
+            "fagc_state_wait_time_ns": 260,
+            "fagc_allow_agc_gain_increase": 0,
+            "fagc_lp_thresh_increment_time": 5,
+            "fagc_lp_thresh_increment_steps": 1,
+            "fagc_lock_level_lmt_gain_increase_en": 1,
+            "fagc_lock_level_gain_increase_upper_limit": 0,
+            "fagc_lpf_final_settling_steps": 1,
+            "fagc_lmt_final_settling_steps": 1,
+            "fagc_final_overrange_count": 3,
+            "fagc_gain_increase_after_gain_lock_en": 0,
+            "fagc_gain_index_type_after_exit_rx_mode": 0,
+            "fagc_use_last_lock_level_for_set_gain_en": 1,
+            "fagc_rst_gla_stronger_sig_thresh_exceeded_en": 1,
+            "fagc_optimized_gain_offset": 5,
+            "fagc_rst_gla_stronger_sig_thresh_above_ll": 10,
+            "fagc_rst_gla_engergy_lost_sig_thresh_exceeded_en": 1,
+            "fagc_rst_gla_engergy_lost_goto_optim_gain_en": 0,
+            "fagc_rst_gla_engergy_lost_sig_thresh_below_ll": 10,
+            "fagc_energy_lost_stronger_sig_gain_lock_exit_cnt": 2,
+            "fagc_rst_gla_large_adc_overload_en": 1,
+            "fagc_rst_gla_large_lmt_overload_en": 1,
+            "fagc_rst_gla_en_agc_pulled_high_en": 0,
+            "fagc_rst_gla_if_en_agc_pulled_high_mode": 0,
+            "fagc_power_measurement_duration_in_state5": 32,
+            "fagc_large_overload_inc_steps": 2,
+            "rssi_delay": 1,
+            "rssi_duration": 1000,
+            "rssi_restart_mode": 3,
+            "rssi_unit_is_rx_samples_enable": 0,
+            "rssi_wait": 1,
+            "aux_adc_decimation": 256,
+            "aux_adc_rate": 40000000,
+            "aux_dac_manual_mode_enable": 1,
+            "aux_dac1_default_value_mV": 0,
+            "aux_dac1_active_in_rx_enable": 0,
+            "aux_dac1_active_in_tx_enable": 0,
+            "aux_dac1_active_in_alert_enable": 0,
+            "aux_dac1_rx_delay_us": 0,
+            "aux_dac1_tx_delay_us": 0,
+            "aux_dac2_default_value_mV": 0,
+            "aux_dac2_active_in_rx_enable": 0,
+            "aux_dac2_active_in_tx_enable": 0,
+            "aux_dac2_active_in_alert_enable": 0,
+            "aux_dac2_rx_delay_us": 0,
+            "aux_dac2_tx_delay_us": 0,
+            "temp_sense_decimation": 256,
+            "temp_sense_measurement_interval_ms": 1000,
+            "temp_sense_offset_signed": -50,
+            "temp_sense_periodic_measurement_enable": 0,
+            "ctrl_outs_enable_mask": 255,
+            "ctrl_outs_index": 0,
+            "elna_settling_delay_ns": 0,
+            "elna_gain_mdB": 0,
+            "elna_bypass_loss_mdB": 0,
+            "elna_rx1_gpo0_control_enable": 0,
+            "elna_rx2_gpo1_control_enable": 0,
+            "elna_gaintable_all_index_enable": 0,
+            "digital_interface_tune_skip_mode": 0,
+            "digital_interface_tune_fir_disable": 0,
+            "pp_tx_swap_enable": 1,
+            "pp_rx_swap_enable": 1,
+            "tx_channel_swap_enable": 0,
+            "rx_channel_swap_enable": 0,
+            "rx_frame_pulse_mode_enable": 1,
+            "two_t_two_r_timing_enable": 0,
+            "invert_data_bus_enable": 0,
+            "invert_data_clk_enable": 0,
+            "fdd_alt_word_order_enable": 0,
+            "invert_rx_frame_enable": 0,
+            "fdd_rx_rate_2tx_enable": 0,
+            "swap_ports_enable": 0,
+            "single_data_rate_enable": 0,
+            "lvds_mode_enable": 1,
+            "half_duplex_mode_enable": 0,
+            "single_port_mode_enable": 0,
+            "full_port_enable": 0,
+            "full_duplex_swap_bits_enable": 0,
+            "delay_rx_data": 0,
+            "rx_data_clock_delay": 0,
+            "rx_data_delay": 4,
+            "tx_fb_clock_delay": 7,
+            "tx_data_delay": 0,
+            "lvds_bias_mV": 150,
+            "lvds_rx_onchip_termination_enable": 1,
+            "rx1rx2_phase_inversion_en": 0,
+            "lvds_invert1_control": 255,
+            "lvds_invert2_control": 15,
+            "gpo_manual_mode_enable": 0,
+            "gpo_manual_mode_enable_mask": 0,
+            "gpo0_inactive_state_high_enable": 0,
+            "gpo1_inactive_state_high_enable": 0,
+            "gpo2_inactive_state_high_enable": 0,
+            "gpo3_inactive_state_high_enable": 0,
+            "gpo0_slave_rx_enable": 0,
+            "gpo0_slave_tx_enable": 0,
+            "gpo1_slave_rx_enable": 0,
+            "gpo1_slave_tx_enable": 0,
+            "gpo2_slave_rx_enable": 0,
+            "gpo2_slave_tx_enable": 1,
+            "gpo3_slave_rx_enable": 0,
+            "gpo3_slave_tx_enable": 0,
+            "gpo0_rx_delay_us": 0,
+            "gpo0_tx_delay_us": 0,
+            "gpo1_rx_delay_us": 0,
+            "gpo1_tx_delay_us": 0,
+            "gpo2_rx_delay_us": 0,
+            "gpo2_tx_delay_us": 0,
+            "gpo3_rx_delay_us": 0,
+            "gpo3_tx_delay_us": 0,
+            "low_high_gain_threshold_mdB": 37000,
+            "low_gain_dB": 0,
+            "high_gain_dB": 24,
+            "tx_mon_track_en": 0,
+            "one_shot_mode_en": 0,
+            "tx_mon_delay": 511,
+            "tx_mon_duration": 8192,
+            "tx1_mon_front_end_gain": 2,
+            "tx2_mon_front_end_gain": 2,
+            "tx1_mon_lo_cm": 48,
+            "tx2_mon_lo_cm": 48
+        },
+        "selected_mac": {
+            "selected_mac": 0
+        },
+        "force_attenuation": 0,
+        "continuous_ofdm_payload_size": 48384,
+        "axis_packet_recording": {
+            "enable": 0,
+            "apc_name": "axis_packet_capture_adc"
+        },
+        "crc_gpio_pulse": {
+            "enable": 0,
+            "pulse_duration_ns": 50
+        },
+        "power_monitor_config": {
+            "num_samples": 30,
+            "oldest_valid_sample_ms": 30000
+        }
+    },
+    "id": 123
+}
