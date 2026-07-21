@@ -11,4 +11,4 @@ lerobot-venv/
 front-end/node_modules
 
 #Calibration files
-lerobot/calibrations
+lerobot/calibrations/
