@@ -6,3 +6,9 @@ __pycache__/
 .venv/
 venv/
 lerobot-venv/
+
+#node_modules
+front-end/node_modules
+
+#Calibration files
+lerobot/calibrations
