@@ -18,6 +18,14 @@ You will need:
 
 This project was made with the goal of taking it down a mineshaft, hence why a separate Raspberry Pi is connected to the follower SO-101 arm.
 
+## Quick Start
+If already set up run
+```
+cd ./Documents/Projects/SO101/SO-ARM101-Digital-Twin/
+source lerobot-venv/bin/activate 
+bash start_robots.sh
+```
+
 ## Setup 
 For a detailed breakdown of how to set up the system, see [docs/SETUP.md](docs/SETUP.md).
 
