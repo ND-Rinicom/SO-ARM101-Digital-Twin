@@ -13,7 +13,9 @@ class JsonRpcService {
       reconnectPeriod: 2000,
       keepalive: 30,
       connectTimeout: 5000,
-      clean: true
+      clean: true,
+      username: 'leader',
+      password: 'Pa$$w0rd'
     });
 
     dataConnection.on('connect', function (event) {

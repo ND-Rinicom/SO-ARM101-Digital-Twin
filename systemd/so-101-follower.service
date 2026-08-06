@@ -1,0 +1,16 @@
+[Unit]
+Description=SO-101 Follower Arm (follower control, video stream)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=follower
+WorkingDirectory=/home/follower
+ExecStart=/bin/bash /home/follower/start_follower.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

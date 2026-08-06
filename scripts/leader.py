@@ -33,9 +33,11 @@ class LeaderMQTTSender:
         self,
         leader_port: str = "/dev/ttyACM0",
         leader_id: str = "so_leader",
-        mqtt_broker: str = "0.0.0.0",
+        mqtt_broker: str = "127.0.0.1",
         mqtt_port: int = 1883,
         mqtt_topic: str = "watchman_robotarm/so-101",
+        mqtt_username: str | None = None,
+        mqtt_password: str | None = None,
         fps: int = 24,
         idle_send_interval: float = 0.25,
     ):
@@ -43,7 +45,7 @@ class LeaderMQTTSender:
         Args:
             leader_port: Serial port for leader arm (e.g., "/dev/ttyACM0")
             leader_id: ID for calibration file (e.g., "so_leader")
-            mqtt_broker: MQTT broker address (e.g., "0.0.0.0")
+            mqtt_broker: MQTT broker address (e.g., "127.0.0.1")
             mqtt_port: MQTT broker port (default: 1883)
             mqtt_topic: MQTT topic to publish targets to
             fps: Target control loop frequency (default: 24)
@@ -58,20 +60,24 @@ class LeaderMQTTSender:
         self.leader = SO101Leader(leader_config)
         
         # Initialize MQTT
-        self.mqtt_client = mqtt.Client()
+        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.mqtt_client.on_connect = self._on_connect
         self.mqtt_client.on_disconnect = self._on_disconnect
+        if mqtt_username is not None:
+            self.mqtt_client.username_pw_set(mqtt_username, mqtt_password)
         self.mqtt_broker = mqtt_broker
         self.mqtt_port = mqtt_port
         self.mqtt_topic = mqtt_topic+"/leader"
+        self.mqtt_username = mqtt_username
+        self.mqtt_password = mqtt_password
         
         self.fps = fps
         self.idle_send_interval = max(0.0, float(idle_send_interval))
         self.is_running = False
         self.is_connected = False
         
-    def _on_connect(self, client, userdata, flags, rc):
-        """Called when MQTT connection is established"""
+    def _on_connect(self, client, userdata, flags, rc, *args):
+        """Called when MQTT connection is established."""
         if rc == 0:
             logger.info(f"Connected to MQTT broker at {self.mqtt_broker}:{self.mqtt_port}")
             self.is_connected = True
@@ -79,8 +85,8 @@ class LeaderMQTTSender:
             logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
             self.is_connected = False
     
-    def _on_disconnect(self, client, userdata, rc):
-        """Called when MQTT connection is lost"""
+    def _on_disconnect(self, client, userdata, rc, *args):
+        """Called when MQTT connection is lost."""
         self.is_connected = False
         logger.warning(f"Disconnected from MQTT broker. Return code: {rc}")
         if rc != 0:
@@ -179,9 +185,11 @@ def parse_args():
     p = argparse.ArgumentParser(description="SO-ARM101 leader sender (MQTT).")
     p.add_argument("--leader-port", default="/dev/ttyACM0")
     p.add_argument("--leader-id", default="so_leader")
-    p.add_argument("--mqtt-broker", default="0.0.0.0")
+    p.add_argument("--mqtt-broker", default="127.0.0.1")
     p.add_argument("--mqtt-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101")
+    p.add_argument("--mqtt-username", default=None)
+    p.add_argument("--mqtt-password", default=None)
     p.add_argument("--fps", type=int, default=24)
     p.add_argument("--idle-send-interval", type=float, default=0.25)
     return p.parse_args()
@@ -197,6 +205,8 @@ def main():
         mqtt_broker=args.mqtt_broker,
         mqtt_port=args.mqtt_port,
         mqtt_topic=args.mqtt_topic,
+        mqtt_username=args.mqtt_username,
+        mqtt_password=args.mqtt_password,
         fps=args.fps,
         idle_send_interval=args.idle_send_interval,
     )

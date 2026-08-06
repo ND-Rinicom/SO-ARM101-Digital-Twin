@@ -1,0 +1,12 @@
+# Passwordless sudo for the specific commands start_leader.sh runs unattended.
+# Verify the binary paths below match this Pi (e.g. `which mosquitto_passwd`)
+# before installing, since some distros put these in /usr/sbin instead.
+#
+# Install as /etc/sudoers.d/so-101-leader (root:root, mode 0440) and validate with:
+#   sudo visudo -cf /etc/sudoers.d/so-101-leader
+
+leader ALL=(root) NOPASSWD: /usr/bin/mosquitto_passwd -b -c /etc/mosquitto/passwd *
+leader ALL=(root) NOPASSWD: /usr/bin/chown * /etc/mosquitto/passwd
+leader ALL=(root) NOPASSWD: /usr/bin/chmod 0600 /etc/mosquitto/passwd
+leader ALL=(root) NOPASSWD: /usr/bin/systemctl start nginx
+leader ALL=(root) NOPASSWD: /usr/bin/systemctl stop nginx

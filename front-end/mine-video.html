@@ -1,0 +1,46 @@
+<!--
+mine-video.html
+Fullscreen, unattended looping video for guests — shows the arm actually
+in use, as context alongside the live 3D digital twin (index.html).
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>SO-101 Demo</title>
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      video {
+        width: 100vw;
+        height: 100vh;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <video autoplay loop muted playsinline preload="auto">
+      <!-- WebM/VP9 first: some embedded/kiosk browsers (e.g. Watchman's
+           video-wall renderer) ship without H.264 decode support and
+           silently render nothing for the mp4 below. -->
+      <source src="vid/d2ce-video.webm" type="video/webm">
+      <source src="vid/d2ce-video.mp4" type="video/mp4">
+    </video>
+    <script>
+      // Some embedded webviews (e.g. Watchman/CEF browser sources) don't
+      // reliably honor the native `loop` attribute and go black at the end
+      // instead of restarting — force it explicitly as a fallback.
+      const video = document.querySelector("video");
+      video.addEventListener("ended", () => {
+        video.currentTime = 0;
+        video.play();
+      });
+    </script>
+  </body>
+</html>

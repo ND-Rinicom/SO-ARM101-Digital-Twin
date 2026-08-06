@@ -19,10 +19,8 @@ angle = -angle-90;  // -90 TEMP FIX to align wrist_roll to correct rest position
 
 This is fine and will work to sync and fix the model, but its not ideal and will cause issues if you want to swap out the model for another glb at a later date.
 
-### Confusing video stream pipeline. 
+### ~~Confusing video stream pipeline~~ (resolved)
 
-The video camera pipeline might want a slight rethink and redesign.
+The follower Pi now hosts its own RTSP server directly (`CameraRtspServer` in `scripts/follower.py`) instead of blasting RTP/H.264 to a separate re-publishing bridge (`rtp_to_rtsp_streamer.py`, removed) on the leader.
 
-Currently we basicly have a "dumb camera sender" running on the follower Pi which basicly just blasts RTP/H.264 to our rtp_to_rtsp_streamer as cheaply as possible. Then the bridge absorbs radio jitter (rtpjitterbuffer), and exposes a stable RTSP endpoint that multiple clients can connect to withough touching the Pi/radio side. 
-
-But this might be a complety unecessary step which could be avoided by the Pi simply hosting its own RTSP, simplifying the system architecture but this depends on system needs.
+Trade-off worth knowing: the old bridge ran an `rtpjitterbuffer` to absorb radio jitter over the leader↔follower wifi link before re-publishing, so it degraded gracefully under a flaky radio link. Serving RTSP straight off the follower drops that buffering — if the follower's wifi is unreliable, viewers connected directly to it may see more jitter/dropped frames than before. Revisit if that turns out to matter in practice.

@@ -35,9 +35,11 @@ class Follower:
         self,
         follower_port: str = "/dev/ttyACM0",
         follower_id: str = "so_follower",
-        mqtt_broker_ip: str = "192.168.1.107",
+        mqtt_broker_ip: str = "192.168.1.198",
         mqtt_broker_port: int = 1883,
         mqtt_topic: str = "watchman_robotarm/so-101",
+        mqtt_username: str | None = None,
+        mqtt_password: str | None = None,
         max_relative_target: float = 20.0,
         control_fps: int = 24,
         idle_send_interval: float = 0.25,
@@ -58,6 +60,8 @@ class Follower:
         self.mqtt_broker_ip = mqtt_broker_ip
         self.mqtt_broker_port = int(mqtt_broker_port)
         self.mqtt_topic = mqtt_topic
+        self.mqtt_username = mqtt_username
+        self.mqtt_password = mqtt_password
         self.follower_feedback = follower_feedback  # Whether to publish current servo positions for frontend display
         self.idle_send_interval = max(0.0, float(idle_send_interval))
 
@@ -139,6 +143,8 @@ class Follower:
             self._mqtt_client.on_connect = self._on_connect
             self._mqtt_client.on_disconnect = self._on_disconnect
             self._mqtt_client.on_message = self._on_message
+            if self.mqtt_username is not None:
+                self._mqtt_client.username_pw_set(self.mqtt_username, self.mqtt_password)
 
             logger.info(
                 "Connecting to MQTT broker at %s:%s...",
@@ -235,81 +241,96 @@ class Follower:
             time.sleep(sleep_time)
 
 
-class CameraStreamer:
+class CameraRtspServer:
     """
-    Optional GStreamer-based camera streamer that captures video from a V4L2 device,
-    encodes it as H.264, and sends it via UDP for frontend display.
+    Optional GStreamer-based RTSP server that captures video from a V4L2 device,
+    encodes it as H.264, and serves it directly over RTSP for clients to pull.
     """
 
-    def __init__(self, camera_device: str, camera_resolution: str, video_host: str = "192.168.1.107", follower_camera_port: int = 5000):
+    def __init__(self, camera_device: str, camera_resolution: str, rtsp_host: str = "0.0.0.0", rtsp_port: int = 8554, mount_point: str = "/camera", video_bitrate: int = 3_000_000):
         self.camera_device = camera_device
         self.camera_resolution = camera_resolution
-        self.video_host = video_host
-        self.follower_camera_port = follower_camera_port
+        self.rtsp_host = rtsp_host
+        self.rtsp_port = rtsp_port
+        self.mount_point = mount_point
+        self.video_bitrate = video_bitrate
 
     def start(self, stop_event=None):
-        import subprocess
-        width, height = self.camera_resolution.split('x')
-        gst_cmd = [
-            'gst-launch-1.0',
-            'v4l2src', f'device={self.camera_device}',
-            '!', f'video/x-raw,width={width},height={height},framerate=30/1',
-            '!', 'videoconvert',
-            '!', 'video/x-raw,format=I420',          # <--- force 4:2:0
-            '!', 'x264enc',
-                'tune=zerolatency',
-                'speed-preset=ultrafast',
-                'bitrate=500',
-                'key-int-max=30',                    # <--- recover after loss
-                'bframes=0',
-                'byte-stream=true',
-            '!', 'rtph264pay', 'pt=96', 'config-interval=1', 'mtu=1200',
-            '!', 'udpsink', f'host={self.video_host}', f'port={self.follower_camera_port}',
-                'sync=false', 'async=false'
-        ]
+        import gi
+        gi.require_version("Gst", "1.0")
+        gi.require_version("GstRtspServer", "1.0")
+        from gi.repository import Gst, GstRtspServer, GLib
 
-        # Loop to continuously run the GStreamer pipeline, restarting if it crashes, until stop_event is set
-        while stop_event is None or not stop_event.is_set():
-            t = time.localtime()
-            timestamp = f"{t.tm_hour}:{t.tm_min:02}:{t.tm_sec:02}.{int(time.time()%1*10):01}"
-            logger.info(f"[{timestamp}] Starting GStreamer H.264 pipeline: {' '.join(gst_cmd)}")
-            try:
-                proc = subprocess.Popen(gst_cmd)
-                while True:
-                    if stop_event is not None and stop_event.is_set():
-                        logger.info("Stop event set, terminating camera pipeline...")
-                        proc.terminate()
-                        proc.wait()
-                        return
-                    ret = proc.poll()
-                    if ret is not None:
-                        logger.warning(f"Camera pipeline exited with code {ret}. Restarting in 2s...")
-                        proc.wait()
-                        time.sleep(2)
-                        break
-                    time.sleep(0.2)
-            except Exception as e:
-                logger.error(f"Error starting GStreamer pipeline: {e}. Retrying in 2s...")
-                time.sleep(2)
+        Gst.init(None)
+
+        width, height = self.camera_resolution.split('x')
+        # MJPG capture: the camera's raw YUYV mode can't sustain 30fps above 640x480,
+        # so higher resolutions need the camera's onboard JPEG compression instead.
+        # Everything after capture runs on the Pi's hardware codec (bcm2835-codec),
+        # keeping this off the CPU that the arm control loop also needs.
+        pipeline_str = (
+            f"v4l2src device={self.camera_device} ! "
+            f"image/jpeg,width={width},height={height},framerate=30/1 ! "
+            f"v4l2jpegdec ! v4l2convert ! video/x-raw,format=NV12 ! "
+            f"v4l2h264enc extra-controls=\"controls,video_bitrate={self.video_bitrate},"
+            f"video_gop_size=30,h264_i_frame_period=30,repeat_sequence_header=1\" ! "
+            # profile must be forced here, not via extra-controls: caps negotiation
+            # drives the encoder's S_FMT and silently overrides the V4L2 control otherwise.
+            f"video/x-h264,profile=high,level=(string)4 ! h264parse config-interval=1 ! "
+            f"rtph264pay name=pay0 pt=96 config-interval=1 mtu=1200"
+        )
+
+        class CameraFactory(GstRtspServer.RTSPMediaFactory):
+            def __init__(self):
+                super().__init__()
+                self.set_shared(True)
+
+            def do_create_element(self, url):
+                return Gst.parse_launch(pipeline_str)
+
+        server = GstRtspServer.RTSPServer()
+        server.set_address(self.rtsp_host)
+        server.set_service(str(self.rtsp_port))
+        server.get_mount_points().add_factory(self.mount_point, CameraFactory())
+        server.attach(None)
+
+        logger.info(f"Starting RTSP server at rtsp://{self.rtsp_host}:{self.rtsp_port}{self.mount_point}")
+
+        loop = GLib.MainLoop()
+        try:
+            while True:
+                if stop_event is not None and stop_event.is_set():
+                    logger.info("Stop event set, quitting RTSP server main loop...")
+                    loop.quit()
+                    break
+                loop.get_context().iteration(False)
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt received, quitting RTSP server main loop...")
+            loop.quit()
 
 def parse_args():
     p = argparse.ArgumentParser(description="SO-ARM101 follower")
     p.add_argument("--follower-port", default="/dev/ttyACM0")
     p.add_argument("--follower-id", default="so_follower")
-    p.add_argument("--mqtt-broker-ip", default="192.168.1.107")
+    p.add_argument("--mqtt-broker-ip", default="192.168.1.198")
     p.add_argument("--mqtt-broker-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="watchman_robotarm/so-101")
+    p.add_argument("--mqtt-username", default=None)
+    p.add_argument("--mqtt-password", default=None)
     p.add_argument("--max-relative-target", type=float, default=20.0)
     p.add_argument("--control-fps", type=int, default=24)
     p.add_argument("--idle-send-interval", type=float, default=0.25)
 
-    # Optional camera
+    # Optional camera: serves the feed as RTSP directly from this follower
     p.add_argument("--camera", dest="camera_device", default=None,
-                   help="Enable ustreamer and use this V4L2 device, e.g. /dev/video0")
-    p.add_argument("--cam-res", dest="camera_resolution", default="640x480")
-    p.add_argument("--video-host",dest="video_host",default=None,
-        help="Host to send UDP video stream to (defaults to --mqtt-broker-ip)",
-    )
+                   help="Enable RTSP camera streaming and use this V4L2 device, e.g. /dev/video0")
+    p.add_argument("--cam-res", dest="camera_resolution", default="1280x720")
+    p.add_argument("--video-bitrate", type=int, default=3_000_000, help="Target H.264 bitrate in bits/sec")
+    p.add_argument("--rtsp-port", type=int, default=8554, help="RTSP server port")
+    p.add_argument("--rtsp-host", default="0.0.0.0", help="RTSP bind address")
+    p.add_argument("--rtsp-mount", default="/camera", help="RTSP mount point")
+
     return p.parse_args()
 
 def main():
@@ -321,6 +342,8 @@ def main():
         mqtt_broker_ip=args.mqtt_broker_ip,
         mqtt_broker_port=args.mqtt_broker_port,
         mqtt_topic=args.mqtt_topic,
+        mqtt_username=args.mqtt_username,
+        mqtt_password=args.mqtt_password,
         max_relative_target=args.max_relative_target,
         control_fps=args.control_fps,
         idle_send_interval=args.idle_send_interval,
@@ -333,13 +356,15 @@ def main():
     follower_thread.start()
     threads.append(follower_thread)
 
-    # Start camera streamer if camera device is provided
+    # Start camera RTSP server if camera device is provided
     if args.camera_device:
-        camera_streamer = CameraStreamer(
+        camera_streamer = CameraRtspServer(
             camera_device=args.camera_device,
             camera_resolution=args.camera_resolution,
-            video_host=(args.video_host or args.mqtt_broker_ip),
-            follower_camera_port=5000,
+            rtsp_host=args.rtsp_host,
+            rtsp_port=args.rtsp_port,
+            mount_point=args.rtsp_mount,
+            video_bitrate=args.video_bitrate,
         )
         camera_streamer_thread = threading.Thread(
             target=camera_streamer.start, args=(stop_event,)

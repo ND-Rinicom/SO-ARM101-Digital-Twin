@@ -1,0 +1,16 @@
+[Unit]
+Description=SO-101 Leader Arm (MQTT broker, leader control, video stream, web front end)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=leader
+WorkingDirectory=/home/leader
+ExecStart=/bin/bash /home/leader/start_leader.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -55,12 +55,16 @@ python scripts/follower.py \
   --idle-send-interval 0.25                  # Idle send interval (seconds)
 ```
 
-If you want to stream the follower camera over UDP (RTP/H.264), add:
+If you want to stream the follower camera as RTSP, add:
 ```bash
-  --camera /dev/video0 \                     # V4L2 device
-  --cam-res 640x480 \                        # e.g. 320×240
-  --video-host <rtp_to_rtsp_streamer.py ip>  # Defaults to --mqtt-broker-ip
+  --camera /dev/video0 \        # V4L2 device — enables the RTSP server
+  --cam-res 1280x720 \          # capture resolution, e.g. 640x480, 1920x1080
+  --video-bitrate 3000000 \     # target H.264 bitrate in bits/sec
+  --rtsp-host 0.0.0.0 \         # RTSP bind address
+  --rtsp-port 8554 \            # RTSP server port
+  --rtsp-mount /camera          # RTSP path
 ```
+`--cam-res` must be a resolution/framerate combo your camera actually supports over MJPEG at 30fps — check with `v4l2-ctl -d /dev/video0 --list-formats-ext` on the Pi. `--video-bitrate` is the main quality/bandwidth knob; raise it for a sharper picture at the cost of more wifi traffic, or lower it if video is starving the servo control traffic.
 
 You should see:
 ```
@@ -72,42 +76,17 @@ Subscribed to topic: watchman_robotarm/so-101/leader
 
 The follower publishes servo positions to `watchman_robotarm/so-101/follower` for the frontend.
 
-### 4. (Optional) RTP to RTSP video Streamer
+### 4. (Optional) Camera RTSP stream
 
-If `scripts/follower.py` is given a camera device when executed, it will stream RTP/H.264 over UDP to `--video-host` on UDP port `5000`.
-
-The script `scripts/rtp_to_rtsp_streamer.py` listens for that RTP stream and re-publishes it as RTSP so multiple clients can view it.
-
-1) On the Pi (follower), start the follower with camera streaming enabled and set `--video-host` to the machine that will run the RTSP server (often your PC):
-```bash
-python scripts/follower.py \
-  --camera /dev/video0 \
-  --cam-res 640x480 \
-  --video-host <PC_IP>
-```
-
-2) On the PC (or any host on the same network), run the RTSP server:
-```bash
-python scripts/rtp_to_rtsp_streamer.py
-```
-
-Optional command-line parameters (with comments):
-```bash
-python scripts/rtp_to_rtsp_streamer.py \
-  --udp-port 5000 \          # UDP port to listen for incoming RTP/H.264
-  --rtsp-host 0.0.0.0 \      # Bind address for the RTSP server
-  --rtsp-port 8000 \         # RTSP server port
-  --mount-point /camera \    # RTSP path
-  --jitter-ms 50              # Jitterbuffer latency (ms)
-```
+If `scripts/follower.py` is given a camera device (`--camera`), it serves the feed directly as RTSP from the follower Pi itself — no separate bridge process needed. Encoding runs on the Pi's hardware H.264 codec rather than the CPU, so raising resolution/bitrate (see `--cam-res`/`--video-bitrate` above) doesn't compete with the arm control loop for CPU time the way software encoding would.
 
 You should see a log like:
 ```
-Starting RTSP server at rtsp://0.0.0.0:8000/camera (UDP in: 5000)
+Starting RTSP server at rtsp://0.0.0.0:8554/camera
 ```
 
-3) View the stream from Watchman:
-- `rtsp://<PC_IP>:8000/camera`
+View the stream (from Watchman, VLC, ffplay, etc.):
+- `rtsp://<FOLLOWER_PI_IP>:8554/camera`
 
 
 ### 5. Web / Watchman
@@ -141,6 +120,10 @@ index.html#?leader=0&followerColor=0xff69b4 # Pink follower arm only
 ```
 You should see:
 Robot arm model updating to match leader/follower joint data
+
+#### Demo video page
+
+`http://<IP_ADDR>/mine-video.html` is a fullscreen, looping video showing the arm actually in use — useful as a second Watchman scene/panel to give guests context alongside the live digital twin. It's static (no MQTT dependency), so it works whether or not the leader/follower services are running. If you swap in your own video, see the note in [SETUP.md](SETUP.md#8-setup-web) about also generating a WebM version — Watchman's embedded browser renders a plain H.264 mp4 as black.
 
 #### Three.js cam controls
 For a detailed guide on how to move the camera around the digital twins please see [Front-end-camera-guide.md](Front-end-camera-guide.md).

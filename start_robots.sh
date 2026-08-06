@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Navigate to the working directory
-cd ~/Documents/SO-ARM101-Digital-Twin/ || { echo "Directory not found!"; exit 1; }
+cd ~/Documents/Projects/SO101/SO-ARM101-Digital-Twin/ || { echo "Directory not found!"; exit 1; }
 
 # Load environment variables from the .env file
 if [ -f .env ]; then
@@ -17,10 +17,10 @@ fi
 cleanup() {
   echo -e "\nStopping all robot arms and streams..."
   
-  # 1. Explicitly kill the follower script AND gstreamer on the Raspberry Pi
+  # 1. Explicitly kill the follower script on the Raspberry Pi (its RTSP camera thread dies with it)
   echo "Shutting down remote Follower Arm and Video Streams..."
   sshpass -p "$PI_PASS" ssh -o StrictHostKeyChecking=no "$PI_USER@$PI_IP" \
-    "pkill -f scripts/follower.py; killall -9 gst-launch-1.0" 2>/dev/null
+    "pkill -f scripts/follower.py" 2>/dev/null
   
   # 2. Kill all local background processes (Leader arm, Video stream)
   echo "Shutting down local processes..."
@@ -43,10 +43,6 @@ source lerobot-venv/bin/activate || { echo "Virtual environment not found locall
 
 # Run leader script in the background
 python scripts/leader.py &
-
-echo "=== 3. Starting Video Playback Stream (Local) ==="
-# Run video stream in the background
-python scripts/rtp_to_rtsp_streamer.py &
 
 echo ""
 echo "========================================================"

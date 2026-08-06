@@ -74,6 +74,8 @@ And here is the format of the MQTT JSON payloads:
 
 - In cases of low bandwidth, RTP video packets are dropped in favour of servo instructions and feedback.
 
+- The follower's camera feed is encoded using the Raspberry Pi's hardware H.264 codec rather than software encoding, allowing higher resolution/bitrate video without competing with the arm control loop for CPU.
+
 - After monitoring using `/scripts/monitor_udp.py` for 15 minutes of constant leader arm movement updates to the follower, the total average Kbps was 768.43.
 
 
