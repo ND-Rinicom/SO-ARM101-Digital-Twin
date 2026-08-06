@@ -22,16 +22,15 @@ python3 -m venv --system-site-packages ~/lerobot-venv
 
 ### 2. Install Dependencies
 
-#### Both PC & Pi (with venv activated)
+#### Both Pis (with venv activated)
 ```bash
 pip install paho-mqtt pyserial numpy feetech-servo-sdk
 ```
 
-#### Pi (Follower PC) dependencies
+#### Follower Pi dependencies
 
 The follower serves its camera directly over RTSP (`scripts/follower.py`'s `CameraRtspServer`), which needs GStreamer's RTSP server and its Python bindings, not just the CLI tools.
 
-Debian/Ubuntu/Raspberry Pi OS:
 ```bash
 sudo apt update
 sudo apt install -y \
@@ -46,21 +45,6 @@ sudo apt install -y \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-libav
 ```
-
-Fedora:
-```bash
-sudo dnf install -y \
-    python3-gobject \
-    gstreamer1-rtsp-server \
-    gstreamer1 \
-    gstreamer1-plugins-base \
-    gstreamer1-plugins-good \
-    gstreamer1-plugins-bad-free \
-    gstreamer1-plugins-ugly \
-    gstreamer1-libav
-```
-
-The leader/PC no longer needs any GStreamer packages — the old bridge that re-published video on the leader side (`rtp_to_rtsp_streamer.py`) has been removed now that the follower serves RTSP itself.
 
 Verify the venv can actually see the bindings before moving on (with the venv activated):
 ```bash
@@ -166,9 +150,9 @@ sudo apt install mosquitto-clients
 To host the front end Web page I used Nginx (https://nginx.org/)
 You probably know how to set up and host a web page yourself but here is a full set up guide anyways:
 
-1) Install and enable nginx
+1) Install and enable nginx on leader pi
 
-Debian/Ubuntu/Raspberry Pi OS:
+Raspberry Pi OS:
 ```bash
 sudo apt update
 sudo apt install -y nginx
@@ -188,19 +172,10 @@ sudo firewall-cmd --reload
 
 The user nginx runs as (and so the owner these files need) differs by distro — Debian/Ubuntu/Raspberry Pi OS uses `www-data`, Fedora uses `nginx`; check yours with `grep "^user" /etc/nginx/nginx.conf` if unsure.
 
-Debian/Ubuntu/Raspberry Pi OS:
 ```bash
 sudo mkdir -p /var/www/so-101
 sudo cp -r /<path to this directory>/front-end/* /var/www/so-101/
 sudo chown -R www-data:www-data /var/www/so-101
-sudo chmod -R 755 /var/www/so-101
-```
-
-Fedora:
-```bash
-sudo mkdir -p /var/www/so-101
-sudo cp -r /<path to this directory>/front-end/* /var/www/so-101/
-sudo chown -R nginx:nginx /var/www/so-101
 sudo chmod -R 755 /var/www/so-101
 ```
 
@@ -259,7 +234,7 @@ sudo systemctl reload nginx
 
 6) Verify the front end can reach the websocket endpoint
 
-- Open `http://<IP_ADDR>/index.html`
+- Open `http://<follower-pi-ip>/index.html`
 - The page should connect to `ws://<IP_ADDR>:9000` — this only works once `start_leader.sh` (or the systemd service from step 12) is actually running, since that's what opens the `9001` websocket listener nginx is proxying to.
 
 7) Demo video page (optional)
@@ -268,7 +243,7 @@ sudo systemctl reload nginx
 
 It's just another file under `front-end/`, so the `cp -r front-end/* /var/www/so-101/` step above already deploys it — nothing extra to configure. Open it at:
 ```
-http://<IP_ADDR>/mine-video.html
+http://<follower-pi-ip>/mine-video.html
 ```
 Since nginx itself is `enable --now`d in step 1 of this section, it's already a systemd service that starts on boot regardless of `start_leader.sh` — so this page (and the rest of the front end) comes back up on its own after a Pi reboot with no further action needed.
 
@@ -320,33 +295,7 @@ Otherwise create a stream of your web front end via the correct URL, and add any
 e.g. http://0.0.0.0/index.html?#follower=0&leaderColor=0xFF6984 for a pink leader digital twin.
 
 
-### 11. Set Port priorities (optional)
-
-If wanting communication from the laptop (leader) to pi (follower) via UDP its a good idea to set the servo comunications as higher priority than the video stream as video packets droping is much better.
-
-Bellow is some tc rules to prioritize the mqtt port over the rtp port. 
-NOTE: the commands below are currenlty for wifi so switch "wlan0" to the appropriate network connection
-
-On the pi cmd 
-```bash
-# Wipe existing rules
-sudo tc qdisc del dev wlan0 root
-
-# Rebuild with pfifo on robot band
-sudo tc qdisc add dev wlan0 root handle 1: prio
-sudo tc qdisc add dev wlan0 parent 1:1 handle 10: pfifo
-sudo tc qdisc add dev wlan0 parent 1:2 handle 20: tbf rate 2mbit burst 32kbit latency 50ms
-
-# Reapply filters
-sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 1 u32 \
-    match ip dport 1883 0xffff flowid 1:1
-sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 2 u32 \
-    match ip dport 5000 0xffff flowid 1:2
-```
-
-**Note:** the `dport 5000` filter above targets the old leader-side RTP bridge, which no longer exists — the follower now serves RTSP directly (`CameraRtspServer` in `scripts/follower.py`), so video traffic leaves the follower's wifi on port `8554` (RTSP control) plus a GStreamer-negotiated dynamic UDP port per client for the actual media, not a fixed one. Pinning that dynamic port down for a `tc` filter isn't configured yet — would need the RTSP server's UDP port range fixed via `set_profiles`/port-range options in `CameraRtspServer` first.
-
-### 12. Run automatically on boot (systemd)
+### 11. Run automatically on boot (systemd)
 
 Unit files live in `systemd/` in this repo. They assume the project lives directly in the service user's home directory (e.g. `/home/leader/`, `/home/follower/`) since that's how `start_leader.sh`/`start_follower.sh` locate themselves — edit `User=`/`WorkingDirectory=`/`ExecStart=` if your layout differs.
 

@@ -1,83 +1,29 @@
-# SO-101 DIGITAL TWIN
-
-NOTE: This project has been reverted to an older branch because the MQTT-to-UDP bridge is obsolete (Rinicom radios work with MQTT). Some previously fixed bugs or completed features may not work; if you hit major issues, please switch back to the deprecated branch (see the branches list).
+# SO-101 DIGITAL TWIN 2 Pi setup
 
 ![Photo of SO-101 Digital Twin Project](docs/img/Project%20Image.png)
 
-This project was designed during my 4th year student work placement with Rinicom. If you have any questions that are not answered below, feel free to reach out to me at nialldorrington@btinternet.com.
+This Branch is dedicated to a 2 Pi setup, with one pi for the leader, web and mosquitto hosting and the other pi for the follower and cam streaming. This setup can be left running meaning I don't have to keep running over and setting up the robot arm if sean of garik want to show it to visitors. 
 
-## Project overview
-The following codebase allows for real-time teleoperation and digital twin visualisation of the SO-101 robot arms.
-
-You will need:
-- SO-101 Leader and follower arms (See SO-101 Robot Arm Details and Maintenance)
-- Raspberry Pi (recommended), or another device to connect the follower arm
-- Linux host device (e.g. laptop) for hosting the front-end and sending leader MQTT updates
-- (Optional) Another host device for hosting the Visual Fusion+ video wall (Watchman)
-- NOTE: The system can be set up with only one host device that also runs the Visual Fusion+ video wall, but the setup guide assumes a separate device is being used.
-
-This project was made with the goal of taking it down a mineshaft, hence why a separate Raspberry Pi is connected to the follower SO-101 arm.
-
-## Quick Start
-If already set up run
-```
-cd ./Documents/Projects/SO101/SO-ARM101-Digital-Twin/
-source lerobot-venv/bin/activate 
-bash start_robots.sh
-```
+## Changes from main
+### follower.py 
+Now creates its own GStreamer-based RTSP server that can run on the follower pi (no need for bridge)
+### Mosquitto MQTT
+The MQTT Broker (Mosquitto that now runs on the leader pi) now requires a username and password (this should be added to main at some point)
+because of this, follower.py, leader.py, jsonrpcovermqtt.js, and .env have all been given the new username and pasword arguments.
+### start_follower.sh & start_leader.sh
+start_robots.sh as seen in main has been replaced with start_follower.sh and start_leader.sh which are run on the respected pis. Both the shell scripts have been configured to run on boot of the pi so if (god forbid) the system breaks simply turning on and off the pis will fix it. (both shell scripts use the same .env, realisticaly they should probably have there own but i cba)
+### systemd .service and .sudoers
+these are the files that allow the pi to execute the system on boot without requiring any human input and are used when setting it up.
+### mine-video.html
+This has nothing to do with the functionality of the robots.
+its a added front end page showing a .webm from when the arm went down the mine. (trys webm first as watchman doesnt like .mp4 but will fall back to mp4 on fail)
+This is just so if being showcased to guests they can about why it exists.
 
 ## Setup 
 For a detailed breakdown of how to set up the system, see [docs/SETUP.md](docs/SETUP.md).
 
 ## Usage Guide
 For a detailed breakdown of how to use the system once it is set up, see [docs/USAGE.md](docs/USAGE.md).
-
-## Project Discription and System Justifications
-
-Now that you have the system up and running and hopefully understand how to use it, below I will go into more detail about the codebase. This should provide a more technical description of system choices, helping with future development or adapting it for future projects.
-
-The code base is broken down into:
-- front-end: HTML & JS for the web digital twin
-- lerobot: Code taken from the open-source LeRobot repo: https://github.com/huggingface/lerobot
-- scripts: Custom Python scripts for the SO-101 leader, follower, and camera that run on the Pi and host device
-
-Here's a diagram showing the data flows (this might cause more confusion, I promise it's not as complicated as it looks):
-
-![DrawIO Diagram of project flow](docs/img/SO-101-Digital-Twin-Diagram.png)
-
-And here is the format of the MQTT JSON payloads:
-```json
-{
-  "id": "unique-message-id",
-  "method": "set_follower_joint_angles",
-  "timestamp": "2026-01-14T15:27:05Z",
-  "params": {
-    "joints": {
-      "shoulder_pan.pos": 0,
-      "shoulder_lift.pos": 0,
-      "elbow_flex.pos": 0,
-      "wrist_flex.pos": 0,
-      "wrist_roll.pos": 0,
-      "gripper.pos": 0
-    }
-  }
-}
-```
-
-### Features
-
-- Calibration ensures that the follower arm will not attempt to move past servo limits, avoiding damage.
-
-- The current system's follower will handle dropped packets by moving in safe increments towards the last received leader position and periodically sending arm states while idle.
-
-- When an MQTT request is stale for either leader or follower (last send was over 5 seconds ago), the relevant digital twin will go red, indicating an error/inaccurate current display.
-
-- In cases of low bandwidth, RTP video packets are dropped in favour of servo instructions and feedback.
-
-- The follower's camera feed is encoded using the Raspberry Pi's hardware H.264 codec rather than software encoding, allowing higher resolution/bitrate video without competing with the arm control loop for CPU.
-
-- After monitoring using `/scripts/monitor_udp.py` for 15 minutes of constant leader arm movement updates to the follower, the total average Kbps was 768.43.
-
 
 ## SO-101 Robot Arm Details and Maintenance 
 
