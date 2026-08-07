@@ -131,12 +131,44 @@ class Follower:
             if cmd_ts is not None:
                 self._last_cmd_timestamp = cmd_ts
 
+    def _connect_with_retry(self, stop_event=None, max_backoff=30.0):
+        """Keep retrying self.follower.connect() with exponential backoff until it succeeds
+        or stop_event is set. Returns False if stop_event fired before a connection succeeded.
+        """
+        backoff = 1.0
+        while stop_event is None or not stop_event.is_set():
+            try:
+                logger.info(f"Connecting to follower arm on {self.follower.config.port}...")
+                self.follower.connect()
+                logger.info("Follower arm connected")
+                return True
+            except Exception as e:
+                logger.error("Failed to connect to follower arm: %s. Retrying in %.0fs...", e, backoff)
+                # A failure partway through connect() (e.g. mid-calibration/configure) can leave
+                # the serial port open; connect() is guarded by @check_if_already_connected, so
+                # clear that state first or every retry will just raise DeviceAlreadyConnectedError.
+                if self.follower.is_connected:
+                    try:
+                        self.follower.disconnect()
+                    except Exception as disconnect_err:
+                        logger.warning(
+                            "Failed to clean up follower arm connection before retry: %s", disconnect_err
+                        )
+                if stop_event is not None:
+                    if stop_event.wait(timeout=backoff):
+                        return False
+                else:
+                    time.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
+        return False
+
     def start(self, stop_event=None):
         try:
-            # Connect to follower arm
-            logger.info(f"Connecting to follower arm on {self.follower.config.port}...")
-            self.follower.connect()
-            logger.info("Follower arm connected")
+            # Connect to follower arm, retrying indefinitely on transient failures
+            # (e.g. a flaky serial write right after connect) so a hiccup doesn't
+            # permanently strand the arm until someone manually restarts the service.
+            if not self._connect_with_retry(stop_event):
+                return
 
             # Connect to MQTT broker
             self._mqtt_client = mqtt.Client()

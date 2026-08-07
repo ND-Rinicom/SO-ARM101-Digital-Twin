@@ -100,9 +100,15 @@ class SOFollower(Robot):
     def calibrate(self) -> None:
         if self.calibration:
             # Calibration file exists, ask user whether to use it or run new calibration
-            user_input = input(
-                f"Press ENTER to use provided calibration file associated with the id {self.id}, or type 'c' and press ENTER to run calibration: "
-            )
+            try:
+                user_input = input(
+                    f"Press ENTER to use provided calibration file associated with the id {self.id}, or type 'c' and press ENTER to run calibration: "
+                )
+            except EOFError:
+                # No interactive stdin (e.g. running unattended under systemd): default to
+                # using the existing calibration file rather than crashing the service.
+                logger.info("No interactive input available; defaulting to provided calibration file")
+                user_input = ""
             if user_input.strip().lower() != "c":
                 logger.info(f"Writing calibration file associated with the id {self.id} to the motors")
                 self.bus.write_calibration(self.calibration)
@@ -142,7 +148,7 @@ class SOFollower(Robot):
         print("Calibration saved to", self.calibration_fpath)
 
     def configure(self) -> None:
-        with self.bus.torque_disabled():
+        with self.bus.torque_disabled(num_retry=5):
             self.bus.configure_motors()
             for motor in self.bus.motors:
                 self.bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
