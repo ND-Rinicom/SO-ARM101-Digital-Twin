@@ -33,6 +33,7 @@
         font-size: 13px;
         padding: 16px;
         z-index: 10;
+        border-left: 1px solid rgba(255, 255, 255, 0.5);
       }
       #panel h1 { font-size: 16px; margin: 0 0 12px; }
       #panel section { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
@@ -108,9 +109,11 @@
         z-index: 10;
         display: flex;
         flex-direction: column;
+        border-top: 1px solid rgba(255, 255, 255, 0.5);
       }
       #bottomTabs {
         display: flex;
+        align-items: center;
         flex-shrink: 0;
         border-bottom: 1px solid rgba(255, 255, 255, 0.12);
       }
@@ -126,15 +129,50 @@
       }
       #bottomTabs .tab-btn:hover { color: #eee; background: none; }
       #bottomTabs .tab-btn.active { color: #eee; border-bottom: 2px solid #5b8fd6; }
+      #btnToggleBottomBar {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: #9ab0c8;
+        padding: 6px 16px;
+        font-size: 20px;
+        line-height: 1;
+        transition: transform 0.15s ease;
+      }
+      #btnToggleBottomBar:hover { color: #eee; background: none; }
+      #btnToggleBottomBar.collapsed { transform: rotate(180deg); }
       #bottomContent { flex: 1; overflow: auto; padding: 12px 16px; }
       .tab-pane { display: none; }
       .tab-pane.active { display: block; height: 100%; box-sizing: border-box; }
 
+      #panelResizeHandle {
+        position: fixed;
+        top: 0;
+        height: 100vh;
+        width: 6px;
+        cursor: ew-resize;
+        z-index: 20;
+        background: transparent;
+      }
+      #bottomBarResizeHandle {
+        position: fixed;
+        height: 6px;
+        cursor: ns-resize;
+        z-index: 20;
+        background: transparent;
+      }
+      #panelResizeHandle:hover, #panelResizeHandle.dragging,
+      #bottomBarResizeHandle:hover, #bottomBarResizeHandle.dragging {
+        background: rgba(91, 143, 214, 0.5);
+      }
+
+      .arm-status-grid { display: flex; flex-wrap: wrap; gap: 20px 40px; }
+      .arm-status-block { flex: 1 1 220px; min-width: 220px; }
       .arm-status-row { display: flex; align-items: baseline; gap: 10px; }
       .arm-label { font-weight: 600; }
       .arm-label.online { color: #6c6; }
       .arm-label.offline { color: #d66; }
-      .arm-detail { color: #9aa; font-size: 12px; margin: 2px 0 14px; }
+      .arm-detail { color: #9aa; font-size: 12px; margin: 2px 0 0; }
 
       .mqtt-controls { display: flex; gap: 6px; margin-bottom: 8px; }
       #mqttTopicFilter { flex: 1; box-sizing: border-box; }
@@ -232,17 +270,24 @@
       <div id="bottomTabs">
         <button class="tab-btn active" data-tab="status">Status</button>
         <button class="tab-btn" data-tab="mqtt">MQTT</button>
+        <button id="btnToggleBottomBar" title="Collapse/expand">&#9662;</button>
       </div>
       <div id="bottomContent">
         <div id="tab-status" class="tab-pane active">
-          <div class="arm-status-row">
-            <span id="leaderArmLabel" class="arm-label offline">Leader (offline)</span>
+          <div class="arm-status-grid">
+            <div class="arm-status-block">
+              <div class="arm-status-row">
+                <span id="leaderArmLabel" class="arm-label offline">Leader (offline)</span>
+              </div>
+              <div class="arm-detail" id="leaderArmDetail"></div>
+            </div>
+            <div class="arm-status-block">
+              <div class="arm-status-row">
+                <span id="followerArmLabel" class="arm-label offline">Follower (offline)</span>
+              </div>
+              <div class="arm-detail" id="followerArmDetail"></div>
+            </div>
           </div>
-          <div class="arm-detail" id="leaderArmDetail"></div>
-          <div class="arm-status-row">
-            <span id="followerArmLabel" class="arm-label offline">Follower (offline)</span>
-          </div>
-          <div class="arm-detail" id="followerArmDetail"></div>
         </div>
         <div id="tab-mqtt" class="tab-pane">
           <div class="mqtt-controls">
@@ -254,6 +299,9 @@
         </div>
       </div>
     </div>
+
+    <div id="panelResizeHandle"></div>
+    <div id="bottomBarResizeHandle"></div>
 
     <script src="js/mqtt/mqtt.min.js"></script>
     <script src="js/mqtt/jsonrpcovermqtt.js"></script>
@@ -273,14 +321,95 @@
     // or bottom bar, on every resize, not just at page load.
     const panelEl = document.getElementById('panel');
     const bottomBarEl = document.getElementById('bottomBar');
+    const bottomTabsEl = document.getElementById('bottomTabs');
+    const bottomContentEl = document.getElementById('bottomContent');
+    const btnToggleBottomBar = document.getElementById('btnToggleBottomBar');
+    const panelResizeHandle = document.getElementById('panelResizeHandle');
+    const bottomBarResizeHandle = document.getElementById('bottomBarResizeHandle');
+
+    // Resize handles are separate fixed-position strips (not children of the
+    // panel/bar) so they aren't clipped by those elements' own overflow:auto —
+    // keep them glued to the current edges whenever panel/bar geometry changes.
+    function syncHandlePositions() {
+      const panelRect = panelEl.getBoundingClientRect();
+      panelResizeHandle.style.left = (panelRect.left - 3) + 'px';
+
+      const barRect = bottomBarEl.getBoundingClientRect();
+      bottomBarResizeHandle.style.left = barRect.left + 'px';
+      bottomBarResizeHandle.style.width = barRect.width + 'px';
+      bottomBarResizeHandle.style.top = (barRect.top - 3) + 'px';
+    }
 
     function resizeViewport() {
       const width = Math.max(1, window.innerWidth - panelEl.offsetWidth);
       const height = Math.max(1, window.innerHeight - bottomBarEl.offsetHeight);
       resizeRenderer(width, height);
+      syncHandlePositions();
     }
     resizeViewport();
     window.addEventListener('resize', resizeViewport);
+
+    // --- Collapse the bottom bar down to just its tab header ---
+    let bottomBarExpandedHeight = bottomBarEl.offsetHeight;
+    let bottomBarCollapsed = false;
+
+    function setBottomBarCollapsed(collapsed) {
+      bottomBarCollapsed = collapsed;
+      if (collapsed) {
+        bottomBarExpandedHeight = bottomBarEl.offsetHeight;
+        bottomBarEl.style.height = bottomTabsEl.offsetHeight + 'px';
+        bottomContentEl.style.display = 'none';
+      } else {
+        bottomContentEl.style.display = '';
+        bottomBarEl.style.height = bottomBarExpandedHeight + 'px';
+      }
+      // Nothing to resize while collapsed — hide the handle entirely rather
+      // than just no-op'ing its drag, so it's not hoverable/draggable at all.
+      bottomBarResizeHandle.style.display = collapsed ? 'none' : '';
+      btnToggleBottomBar.classList.toggle('collapsed', collapsed);
+      resizeViewport();
+    }
+
+    btnToggleBottomBar.addEventListener('click', () => setBottomBarCollapsed(!bottomBarCollapsed));
+
+    // --- Drag to resize the sidebar width / bottom bar height ---
+    function makeDraggable(handleEl, onDrag) {
+      handleEl.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        handleEl.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+
+        function onMouseMove(moveEvent) {
+          onDrag(moveEvent);
+        }
+        function onMouseUp() {
+          handleEl.classList.remove('dragging');
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        }
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    makeDraggable(panelResizeHandle, (e) => {
+      const minWidth = 240;
+      const maxWidth = Math.floor(window.innerWidth * 0.7);
+      const width = Math.min(maxWidth, Math.max(minWidth, window.innerWidth - e.clientX));
+      panelEl.style.width = width + 'px';
+      bottomBarEl.style.right = width + 'px';
+      resizeViewport();
+    });
+
+    makeDraggable(bottomBarResizeHandle, (e) => {
+      const minHeight = bottomTabsEl.offsetHeight + 60;
+      const maxHeight = Math.floor(window.innerHeight * 0.85);
+      const height = Math.min(maxHeight, Math.max(minHeight, window.innerHeight - e.clientY));
+      bottomBarEl.style.height = height + 'px';
+      bottomBarExpandedHeight = height;
+      resizeViewport();
+    });
 
     const LEADER_STALE_MS = 5000;
     const MODEL_TOPIC_ROOT = 'watchman_robotarm/so-101';
@@ -367,9 +496,15 @@
     };
     tabButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.classList.contains('active')) {
+          // Clicking the already-selected tab toggles the bar collapsed/expanded.
+          setBottomBarCollapsed(!bottomBarCollapsed);
+          return;
+        }
         tabButtons.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         for (const key in tabPanes) tabPanes[key].classList.toggle('active', key === btn.dataset.tab);
+        setBottomBarCollapsed(false);
       });
     });
 
