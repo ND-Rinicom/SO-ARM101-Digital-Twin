@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Animate — Robot Arm</title>
+    <style> body { margin: 0; } </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@v0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.182.0/examples/jsm/"
+        }
+    }
+    </script>
+    <style>
+      canvas { cursor: grab; }
+      canvas.rotating { cursor: grabbing; }
+      canvas.panning { cursor: all-scroll; }
+      canvas.zooming { cursor: zoom-in; }
+
+      #panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 360px;
+        max-width: 100vw;
+        height: 100vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        background: rgba(20, 20, 24, 0.92);
+        color: #eee;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        padding: 16px;
+        z-index: 10;
+      }
+      #panel h1 { font-size: 16px; margin: 0 0 12px; }
+      #panel section { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+      #panel section:last-child { border-bottom: none; }
+      #panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #9ab0c8; margin: 0 0 8px; }
+
+      .joint-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+      .joint-row label { width: 92px; flex-shrink: 0; }
+      .joint-row input[type="range"] { flex: 1; }
+      .joint-row input[type="number"] { width: 56px; }
+
+      button {
+        background: #2a2f3a;
+        color: #eee;
+        border: 1px solid #454b58;
+        border-radius: 4px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      button:hover:not(:disabled) { background: #3a4150; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+      .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+      .row:last-child { margin-bottom: 0; }
+
+      #keyframeList {
+        list-style: none;
+        margin: 0 0 8px;
+        padding: 0;
+        max-height: 180px;
+        overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 4px;
+      }
+      #keyframeList li {
+        padding: 6px 8px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        justify-content: space-between;
+      }
+      #keyframeList li:last-child { border-bottom: none; }
+      #keyframeList li.selected { background: #33507a; }
+      #keyframeList li:hover { background: rgba(255, 255, 255, 0.06); }
+      #keyframeList .empty { padding: 10px 8px; color: #888; cursor: default; }
+
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+        background: #a33;
+      }
+      .status-dot.live { background: #3a3; }
+
+      input[type="text"], input[type="number"].wide { width: 100%; box-sizing: border-box; }
+      input, button { font-family: inherit; }
+      small.hint { color: #9aa; display: block; margin-top: 4px; }
+
+      #bottomBar {
+        position: fixed;
+        left: 0;
+        right: 360px;
+        bottom: 0;
+        height: 240px;
+        box-sizing: border-box;
+        background: rgba(20, 20, 24, 0.92);
+        color: #eee;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+      }
+      #bottomTabs {
+        display: flex;
+        flex-shrink: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      #bottomTabs .tab-btn {
+        background: none;
+        border: none;
+        border-radius: 0;
+        color: #9ab0c8;
+        padding: 8px 16px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      #bottomTabs .tab-btn:hover { color: #eee; background: none; }
+      #bottomTabs .tab-btn.active { color: #eee; border-bottom: 2px solid #5b8fd6; }
+      #bottomContent { flex: 1; overflow: auto; padding: 12px 16px; }
+      .tab-pane { display: none; }
+      .tab-pane.active { display: block; height: 100%; box-sizing: border-box; }
+
+      .arm-status-row { display: flex; align-items: baseline; gap: 10px; }
+      .arm-label { font-weight: 600; }
+      .arm-label.online { color: #6c6; }
+      .arm-label.offline { color: #d66; }
+      .arm-detail { color: #9aa; font-size: 12px; margin: 2px 0 14px; }
+
+      .mqtt-controls { display: flex; gap: 6px; margin-bottom: 8px; }
+      #mqttTopicFilter { flex: 1; box-sizing: border-box; }
+      #mqttLog {
+        font-family: monospace;
+        font-size: 11px;
+        overflow-y: auto;
+        height: calc(100% - 40px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        padding: 4px 6px;
+        box-sizing: border-box;
+      }
+      .mqtt-entry { padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); word-break: break-all; }
+      .mqtt-entry .time { color: #888; margin-right: 6px; }
+      .mqtt-entry .topic { color: #7ec4ff; }
+    </style>
+  </head>
+  <body style="background-color: black;">
+    <div id="debug-log" style="display:none; position:fixed; top:0; left:0; width:100vw; max-height:30vh; overflow:auto; background:rgba(0,0,0,0.95); color:#0f0; font-family:monospace; font-size:14px; z-index:2147483647; padding:8px 12px; box-sizing:border-box; border-bottom:2px solid #0f0; pointer-events:none;"></div>
+
+    <div id="panel">
+      <h1>Animate Follower</h1>
+
+      <section>
+        <h2>Joints</h2>
+        <div id="jointRows"></div>
+      </section>
+
+      <section>
+        <h2>Keyframes</h2>
+        <ul id="keyframeList"></ul>
+        <div class="row">
+          <label>Interp ms <input type="number" id="kfInterp" value="1000" min="0" style="width:64px;"></label>
+          <label>Hold ms <input type="number" id="kfHold" value="0" min="0" style="width:64px;"></label>
+        </div>
+        <div class="row">
+          <button id="btnAddKeyframe">Add from sliders</button>
+          <button id="btnUpdateKeyframe" disabled>Update selected</button>
+          <button id="btnRemoveKeyframe" disabled>Remove</button>
+          <button id="btnMoveUp" disabled>&#9650;</button>
+          <button id="btnMoveDown" disabled>&#9660;</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Playback</h2>
+        <div class="row">
+          <label>Follower FPS <input type="number" id="followerFps" value="24" min="1" max="60" style="width:56px;"></label>
+        </div>
+        <div class="row">
+          <button id="btnPreview">&#9654; Preview</button>
+          <button id="btnStopPreview" disabled>&#9632; Stop</button>
+        </div>
+        <small class="hint">Preview samples keyframes at this rate, matching how the follower will actually be stepped.</small>
+      </section>
+
+      <section>
+        <h2>Live leader feed</h2>
+        <div class="row">
+          <span id="statusDot" class="status-dot"></span>
+          <span id="statusText">Waiting for leader&hellip;</span>
+        </div>
+        <div class="row">
+          <button id="btnGrab" disabled>Grab keyframe</button>
+        </div>
+        <div class="row">
+          <button id="btnRecord" disabled>&#9679; Record</button>
+          <label>Interval ms <input type="number" id="recordInterval" value="200" min="20" style="width:64px;"></label>
+        </div>
+      </section>
+
+      <section>
+        <h2>File</h2>
+        <input type="text" id="animationName" value="untitled" class="wide">
+        <div class="row" style="margin-top:8px;">
+          <button id="btnSave">Save .json</button>
+          <button id="btnLoad">Load .json</button>
+          <input type="file" id="fileInput" accept=".json" style="display:none;">
+        </div>
+      </section>
+
+      <section>
+        <h2>Send to follower</h2>
+        <div class="row">
+          <button disabled title="Requires Leader Pi support — not built yet">Send</button>
+          <button disabled title="Requires Leader Pi support — not built yet">Start Loop</button>
+          <button disabled title="Requires Leader Pi support — not built yet">Stop Loop</button>
+        </div>
+        <small class="hint">Requires Leader Pi support — not built yet.</small>
+      </section>
+    </div>
+
+    <div id="bottomBar">
+      <div id="bottomTabs">
+        <button class="tab-btn active" data-tab="status">Status</button>
+        <button class="tab-btn" data-tab="mqtt">MQTT</button>
+      </div>
+      <div id="bottomContent">
+        <div id="tab-status" class="tab-pane active">
+          <div class="arm-status-row">
+            <span id="leaderArmLabel" class="arm-label offline">Leader (offline)</span>
+          </div>
+          <div class="arm-detail" id="leaderArmDetail"></div>
+          <div class="arm-status-row">
+            <span id="followerArmLabel" class="arm-label offline">Follower (offline)</span>
+          </div>
+          <div class="arm-detail" id="followerArmDetail"></div>
+        </div>
+        <div id="tab-mqtt" class="tab-pane">
+          <div class="mqtt-controls">
+            <input type="text" id="mqttTopicFilter" value="watchman_robotarm/so-101/#">
+            <button id="btnSetMqttTopic">Set</button>
+            <button id="btnClearMqttLog">Clear</button>
+          </div>
+          <div id="mqttLog"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/mqtt/mqtt.min.js"></script>
+    <script src="js/mqtt/jsonrpcovermqtt.js"></script>
+    <script type="module">
+    import { loadModel, setJointAngles, setModelColor, setModelTransparency, resizeRenderer } from '/js/3Dmodels.js';
+    import { initCameraControls } from '/js/cameraControls.js';
+    import {
+      JOINT_NAMES, JOINT_RANGES, emptyJoints, createAnimation, createKeyframe,
+      normalizeJoints, downloadAnimation, readAnimationFile, createPlaybackController,
+      generateFrames, DEFAULT_FPS
+    } from '/js/animationEditor.js';
+
+    // 3Dmodels.js sizes the canvas to the full window once, at import time, and
+    // has no resize handling of its own. Reads the panel/bar's actual rendered
+    // dimensions (rather than duplicating their CSS sizes as constants here) so
+    // the 3D viewport always fills exactly the space not covered by the sidebar
+    // or bottom bar, on every resize, not just at page load.
+    const panelEl = document.getElementById('panel');
+    const bottomBarEl = document.getElementById('bottomBar');
+
+    function resizeViewport() {
+      const width = Math.max(1, window.innerWidth - panelEl.offsetWidth);
+      const height = Math.max(1, window.innerHeight - bottomBarEl.offsetHeight);
+      resizeRenderer(width, height);
+    }
+    resizeViewport();
+    window.addEventListener('resize', resizeViewport);
+
+    const LEADER_STALE_MS = 5000;
+    const MODEL_TOPIC_ROOT = 'watchman_robotarm/so-101';
+    const LEADER_TOPIC = MODEL_TOPIC_ROOT + '/leader';
+    const FOLLOWER_TOPIC = MODEL_TOPIC_ROOT + '/follower';
+    const MQTT_LOG_MAX_ENTRIES = 200;
+
+    // Starting pose for the sliders/preview on page load.
+    const DEFAULT_JOINTS = {
+      shoulder_pan: 0,
+      shoulder_lift: -100,
+      elbow_flex: 100,
+      wrist_flex: 75,
+      wrist_roll: -90,
+      gripper: 0,
+    };
+
+    let animation = createAnimation('untitled');
+    let currentJoints = { ...DEFAULT_JOINTS };
+    let selectedIndex = -1;
+
+    let lastLeaderJoints = null;
+    let lastLeaderTimestamp = 0;
+    let leaderIsLive = false;
+    let lastFollowerTimestamp = 0;
+    let followerIsLive = false;
+    let recordIntervalId = null;
+
+    // Cache of generateFrames' output, invalidated whenever keyframes are
+    // mutated (see markFramesDirty callers) or the fps input changes.
+    let cachedFrames = null; // { fps, frames }
+    let framesDirty = true;
+
+    function markFramesDirty() {
+      framesDirty = true;
+    }
+
+    function getFrames(fps) {
+      if (framesDirty || !cachedFrames || cachedFrames.fps !== fps) {
+        cachedFrames = { fps, frames: generateFrames(animation.keyframes, fps) };
+        framesDirty = false;
+      }
+      return cachedFrames.frames;
+    }
+
+    // Elements
+    const jointRowsEl = document.getElementById('jointRows');
+    const keyframeListEl = document.getElementById('keyframeList');
+    const kfInterpEl = document.getElementById('kfInterp');
+    const kfHoldEl = document.getElementById('kfHold');
+    const btnAddKeyframe = document.getElementById('btnAddKeyframe');
+    const btnUpdateKeyframe = document.getElementById('btnUpdateKeyframe');
+    const btnRemoveKeyframe = document.getElementById('btnRemoveKeyframe');
+    const btnMoveUp = document.getElementById('btnMoveUp');
+    const btnMoveDown = document.getElementById('btnMoveDown');
+    const btnPreview = document.getElementById('btnPreview');
+    const btnStopPreview = document.getElementById('btnStopPreview');
+    const followerFpsEl = document.getElementById('followerFps');
+    followerFpsEl.value = DEFAULT_FPS;
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const btnGrab = document.getElementById('btnGrab');
+    const btnRecord = document.getElementById('btnRecord');
+    const recordIntervalEl = document.getElementById('recordInterval');
+    const animationNameEl = document.getElementById('animationName');
+    const btnSave = document.getElementById('btnSave');
+    const btnLoad = document.getElementById('btnLoad');
+    const fileInput = document.getElementById('fileInput');
+
+    const leaderArmLabel = document.getElementById('leaderArmLabel');
+    const leaderArmDetail = document.getElementById('leaderArmDetail');
+    const followerArmLabel = document.getElementById('followerArmLabel');
+    const followerArmDetail = document.getElementById('followerArmDetail');
+    const mqttTopicFilterEl = document.getElementById('mqttTopicFilter');
+    const btnSetMqttTopic = document.getElementById('btnSetMqttTopic');
+    const btnClearMqttLog = document.getElementById('btnClearMqttLog');
+    const mqttLogEl = document.getElementById('mqttLog');
+
+    // --- Bottom bar tabs ---
+    const tabButtons = document.querySelectorAll('#bottomTabs .tab-btn');
+    const tabPanes = {
+      status: document.getElementById('tab-status'),
+      mqtt: document.getElementById('tab-mqtt'),
+    };
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tabButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        for (const key in tabPanes) tabPanes[key].classList.toggle('active', key === btn.dataset.tab);
+      });
+    });
+
+    // --- Joint sliders ---
+    const jointInputs = {};
+    for (const name of JOINT_NAMES) {
+      const [min, max] = JOINT_RANGES[name];
+      const startValue = DEFAULT_JOINTS[name];
+      const row = document.createElement('div');
+      row.className = 'joint-row';
+      row.innerHTML = `
+        <label for="joint-${name}">${name}</label>
+        <input type="range" id="joint-${name}" min="${min}" max="${max}" step="0.5" value="${startValue}">
+        <input type="number" id="joint-${name}-num" min="${min}" max="${max}" step="0.5" value="${startValue}">
+      `;
+      jointRowsEl.appendChild(row);
+
+      const range = row.querySelector(`#joint-${name}`);
+      const num = row.querySelector(`#joint-${name}-num`);
+      jointInputs[name] = { range, num };
+
+      function apply(value) {
+        const v = Math.max(min, Math.min(max, value));
+        currentJoints[name] = v;
+        range.value = v;
+        num.value = v;
+        setJointAngles(currentJoints, 'follower');
+      }
+
+      range.addEventListener('input', () => apply(parseFloat(range.value)));
+      num.addEventListener('input', () => {
+        const v = parseFloat(num.value);
+        if (!isNaN(v)) apply(v);
+      });
+    }
+
+    function syncSlidersFromCurrentJoints() {
+      for (const name of JOINT_NAMES) {
+        jointInputs[name].range.value = currentJoints[name];
+        jointInputs[name].num.value = currentJoints[name];
+      }
+    }
+
+    // --- Keyframe list ---
+    function renderKeyframeList() {
+      keyframeListEl.innerHTML = '';
+      if (animation.keyframes.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'No keyframes yet';
+        keyframeListEl.appendChild(li);
+      } else {
+        animation.keyframes.forEach((kf, idx) => {
+          const li = document.createElement('li');
+          if (idx === selectedIndex) li.classList.add('selected');
+          li.innerHTML = `<span>#${idx + 1}</span><span>interp ${kf.interpolationMs}ms · hold ${kf.holdMs}ms</span>`;
+          li.addEventListener('click', () => selectKeyframe(idx));
+          keyframeListEl.appendChild(li);
+        });
+      }
+
+      const hasSelection = selectedIndex >= 0;
+      btnUpdateKeyframe.disabled = !hasSelection;
+      btnRemoveKeyframe.disabled = !hasSelection;
+      btnMoveUp.disabled = !hasSelection || selectedIndex === 0;
+      btnMoveDown.disabled = !hasSelection || selectedIndex === animation.keyframes.length - 1;
+    }
+
+    function selectKeyframe(idx) {
+      selectedIndex = idx;
+      const kf = animation.keyframes[idx];
+      currentJoints = { ...kf.joints };
+      kfInterpEl.value = kf.interpolationMs;
+      kfHoldEl.value = kf.holdMs;
+      syncSlidersFromCurrentJoints();
+      setJointAngles(currentJoints, 'follower');
+      renderKeyframeList();
+    }
+
+    function addKeyframeFromSliders() {
+      const kf = createKeyframe(currentJoints, parseFloat(kfInterpEl.value), parseFloat(kfHoldEl.value));
+      animation.keyframes.push(kf);
+      selectedIndex = animation.keyframes.length - 1;
+      markFramesDirty();
+      renderKeyframeList();
+    }
+
+    btnAddKeyframe.addEventListener('click', addKeyframeFromSliders);
+
+    btnUpdateKeyframe.addEventListener('click', () => {
+      if (selectedIndex < 0) return;
+      animation.keyframes[selectedIndex] = createKeyframe(currentJoints, parseFloat(kfInterpEl.value), parseFloat(kfHoldEl.value));
+      markFramesDirty();
+      renderKeyframeList();
+    });
+
+    btnRemoveKeyframe.addEventListener('click', () => {
+      if (selectedIndex < 0) return;
+      animation.keyframes.splice(selectedIndex, 1);
+      selectedIndex = -1;
+      markFramesDirty();
+      renderKeyframeList();
+    });
+
+    btnMoveUp.addEventListener('click', () => {
+      if (selectedIndex <= 0) return;
+      const kfs = animation.keyframes;
+      [kfs[selectedIndex - 1], kfs[selectedIndex]] = [kfs[selectedIndex], kfs[selectedIndex - 1]];
+      selectedIndex -= 1;
+      markFramesDirty();
+      renderKeyframeList();
+    });
+
+    btnMoveDown.addEventListener('click', () => {
+      if (selectedIndex < 0 || selectedIndex >= animation.keyframes.length - 1) return;
+      const kfs = animation.keyframes;
+      [kfs[selectedIndex + 1], kfs[selectedIndex]] = [kfs[selectedIndex], kfs[selectedIndex + 1]];
+      selectedIndex += 1;
+      markFramesDirty();
+      renderKeyframeList();
+    });
+
+    // --- Playback ---
+    const playback = createPlaybackController((joints) => {
+      currentJoints = joints;
+      setJointAngles(currentJoints, 'follower');
+    });
+
+    btnPreview.addEventListener('click', () => {
+      const fps = Math.max(1, parseFloat(followerFpsEl.value) || DEFAULT_FPS);
+      const frames = getFrames(fps);
+      if (frames.length === 0) return;
+      playback.play(frames, fps);
+      btnPreview.disabled = true;
+      btnStopPreview.disabled = false;
+    });
+
+    btnStopPreview.addEventListener('click', stopPreview);
+
+    function stopPreview() {
+      playback.stop();
+      btnPreview.disabled = false;
+      btnStopPreview.disabled = true;
+    }
+
+    // --- File save/load ---
+    btnSave.addEventListener('click', () => {
+      animation.name = animationNameEl.value.trim() || 'untitled';
+      downloadAnimation(animation);
+    });
+
+    btnLoad.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      try {
+        animation = await readAnimationFile(file);
+        animationNameEl.value = animation.name;
+        selectedIndex = -1;
+        markFramesDirty();
+        if (animation.keyframes.length > 0) {
+          selectKeyframe(0);
+        } else {
+          renderKeyframeList();
+        }
+      } catch (err) {
+        console.error('Failed to load animation:', err);
+        alert('Could not load animation: ' + err.message);
+      }
+    });
+
+    // --- 3D setup ---
+    loadModel('./models/so-101', 'follower').then((followerLoaded) => {
+      if (!followerLoaded) {
+        console.warn('Follower model failed to load');
+        return;
+      }
+      setModelColor('follower', 0x88ccff);
+      setModelTransparency('follower', 0.9);
+      setJointAngles(currentJoints, 'follower');
+
+      // Deliberately no jsonRpcService passed here: this page's own MQTT connection
+      // (below) is read-only for the leader feed, and initCameraControls no-ops its
+      // camera broadcast without a service — we don't want orbiting the camera on this
+      // page to publish change-camera messages that would move other open viewers.
+      initCameraControls({
+        modelName: 'follower',
+        initialCameraPosition: { x: 0, y: 3, z: 0 },
+        initialTarget: { x: 0, y: 0, z: 0 }
+      });
+
+      renderKeyframeList();
+    });
+
+    // --- Live leader feed (read-only) ---
+    const urlObj = new URL(window.location.href);
+    const jsonRpcService = new JsonRpcService('ws://' + urlObj.hostname + ':9000', MODEL_TOPIC_ROOT + '/#');
+
+    jsonRpcService.onMethodCalled = function (topic, message) {
+      if (message.method === 'set_follower_joint_angles') {
+        lastLeaderJoints = normalizeJoints(message.params?.joints || {});
+        lastLeaderTimestamp = Date.now();
+
+        if (recordIntervalId !== null) {
+          // While recording, follow the live feed frame-by-frame in the preview
+          // (sampling into keyframes happens on its own interval, see startRecording).
+          currentJoints = lastLeaderJoints;
+          setJointAngles(currentJoints, 'follower');
+          syncSlidersFromCurrentJoints();
+        }
+      } else if (message.method === 'set_actual_joint_angles') {
+        // The follower's own feedback publish (see follower.py) — used only to
+        // show it as online/offline in the Status tab, not consumed otherwise.
+        lastFollowerTimestamp = Date.now();
+      }
+    };
+
+    function updateArmStatusUI(labelEl, detailEl, name, topic, isLive) {
+      labelEl.textContent = `${name} (${isLive ? 'online' : 'offline'})`;
+      labelEl.classList.toggle('online', isLive);
+      labelEl.classList.toggle('offline', !isLive);
+      detailEl.textContent = isLive ? `Receiving packets on ${topic}` : `Not receiving any packets on ${topic}`;
+    }
+
+    function updateConnectionStatus() {
+      const now = Date.now();
+      const leaderLive = lastLeaderTimestamp > 0 && (now - lastLeaderTimestamp) < LEADER_STALE_MS;
+      const followerLive = lastFollowerTimestamp > 0 && (now - lastFollowerTimestamp) < LEADER_STALE_MS;
+
+      updateArmStatusUI(leaderArmLabel, leaderArmDetail, 'Leader', LEADER_TOPIC, leaderLive);
+      updateArmStatusUI(followerArmLabel, followerArmDetail, 'Follower', FOLLOWER_TOPIC, followerLive);
+      followerIsLive = followerLive;
+
+      if (leaderLive === leaderIsLive) return;
+      leaderIsLive = leaderLive;
+      statusDot.classList.toggle('live', leaderLive);
+      statusText.textContent = leaderLive ? 'Leader live' : 'Waiting for leader…';
+      btnGrab.disabled = !leaderLive;
+      btnRecord.disabled = !leaderLive;
+      if (!leaderLive && recordIntervalId !== null) {
+        stopRecording();
+      }
+    }
+    setInterval(updateConnectionStatus, 500);
+    updateConnectionStatus();
+
+    // --- MQTT traffic tab ---
+    // Filters client-side against the messages already arriving on jsonRpcService's
+    // wildcard subscription (MODEL_TOPIC_ROOT + '/#') rather than issuing a fresh MQTT
+    // subscribe per topic box change — sufficient for everything under this app's own
+    // topic root, which is all this page ever needs to inspect.
+    let trafficFilter = mqttTopicFilterEl.value.trim();
+
+    function topicMatches(filter, topic) {
+      const f = filter.split('/');
+      const t = topic.split('/');
+      for (let i = 0; i < f.length; i++) {
+        if (f[i] === '#') return true;
+        if (i >= t.length) return false;
+        if (f[i] !== '+' && f[i] !== t[i]) return false;
+      }
+      return f.length === t.length;
+    }
+
+    function appendTrafficLogEntry(topic, payloadBuffer) {
+      const text = payloadBuffer.toString();
+      let pretty = text;
+      try {
+        pretty = JSON.stringify(JSON.parse(text));
+      } catch (err) {
+        // Not JSON — show the raw payload text as-is.
+      }
+
+      const entry = document.createElement('div');
+      entry.className = 'mqtt-entry';
+
+      const meta = document.createElement('div');
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'time';
+      timeSpan.textContent = new Date().toLocaleTimeString();
+      const topicSpan = document.createElement('span');
+      topicSpan.className = 'topic';
+      topicSpan.textContent = topic;
+      meta.appendChild(timeSpan);
+      meta.appendChild(topicSpan);
+
+      const body = document.createElement('div');
+      body.textContent = pretty;
+
+      entry.appendChild(meta);
+      entry.appendChild(body);
+      mqttLogEl.appendChild(entry);
+
+      while (mqttLogEl.children.length > MQTT_LOG_MAX_ENTRIES) {
+        mqttLogEl.removeChild(mqttLogEl.firstChild);
+      }
+      mqttLogEl.scrollTop = mqttLogEl.scrollHeight;
+    }
+
+    jsonRpcService.mqtt_conn.on('message', (topic, payloadBuffer) => {
+      if (trafficFilter && topicMatches(trafficFilter, topic)) {
+        appendTrafficLogEntry(topic, payloadBuffer);
+      }
+    });
+
+    function setTrafficFilter(filter) {
+      trafficFilter = filter.trim();
+      mqttLogEl.innerHTML = '';
+    }
+
+    btnSetMqttTopic.addEventListener('click', () => setTrafficFilter(mqttTopicFilterEl.value));
+    mqttTopicFilterEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') setTrafficFilter(mqttTopicFilterEl.value);
+    });
+    btnClearMqttLog.addEventListener('click', () => {
+      mqttLogEl.innerHTML = '';
+    });
+
+    btnGrab.addEventListener('click', () => {
+      if (!lastLeaderJoints) return;
+      const kf = createKeyframe(lastLeaderJoints, parseFloat(kfInterpEl.value), 0);
+      animation.keyframes.push(kf);
+      markFramesDirty();
+      selectKeyframe(animation.keyframes.length - 1);
+    });
+
+    function startRecording() {
+      const intervalMs = Math.max(20, parseFloat(recordIntervalEl.value) || 200);
+      recordIntervalId = setInterval(() => {
+        if (!lastLeaderJoints) return;
+        animation.keyframes.push(createKeyframe(lastLeaderJoints, intervalMs, 0));
+        markFramesDirty();
+        renderKeyframeList();
+      }, intervalMs);
+      btnRecord.textContent = '■ Stop recording';
+    }
+
+    function stopRecording() {
+      if (recordIntervalId !== null) {
+        clearInterval(recordIntervalId);
+        recordIntervalId = null;
+      }
+      btnRecord.textContent = '● Record';
+    }
+
+    btnRecord.addEventListener('click', () => {
+      if (recordIntervalId === null) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+    </script>
+  </body>
+</html>

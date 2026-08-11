@@ -28,3 +28,20 @@ Then the user can:
  - A small **retained status topic** (mirroring how `follower.py` already publishes `set_actual_joint_angles`) reports current animation state (idle / looping which animation), so a freshly opened animate.html tab can see what's already running without replaying commands.
  - Kill switch: use MQTT **Last Will and Testament** on `leader.py`'s connection rather than relying on `beforeunload`/tab-close JS, since LWT fires on ungraceful disconnects (crash, network drop) too.
  - Resuming physical-arm control after a loop stops relies on `follower.py`'s existing `max_relative_target` jump protection to avoid a snap if the physical arm has drifted — no new safety logic needed there.
+
+### Front-end status
+
+Done — should work right now (front-end only, no MQTT broker or Leader Pi needed for most of it):
+ - 3D preview: `animate.html` loads just the follower model, with the same orbit/pan/zoom camera controls as `index.html`.
+ - Manual keyframe authoring: 6 joint sliders + number inputs live-update the 3D preview; Add/Update/Remove/Move-up/Move-down manage the keyframe list; each keyframe stores interpolation ms + hold ms, per spec.
+ - Preview playback: samples the keyframe list into a concrete frame sequence at a configurable Follower FPS field (default 24, matching `follower.py`), loops continuously, and caches that sampled sequence — only regenerates when a keyframe changes or FPS changes, not on every Preview click or every loop iteration.
+ - Save / Load: downloads/reads a `.json` file with the animation name + keyframes.
+ - Record & Grab (read-only MQTT): connects to the broker over websockets exactly like `index.html` does, shows a live/stale status dot for the leader feed, lets you Grab the current live pose as a keyframe, or toggle Record to sample the live feed into keyframes at a configurable interval (auto-stopping if the connection drops).
+ - Send / Start Loop / Stop Loop: present in the UI but intentionally hard-disabled with a tooltip — there's nothing on the other end yet.
+
+Not yet done / left to do:
+ 1. Real browser verification — built and reasoned through carefully but not yet actually run/clicked through in a browser.
+ 2. The whole Leader Pi backend pass — everything under "Design decisions" above: the mode switch in `leader.py`, the new non-retained control topic, the retained status topic, and the MQTT Last Will and Testament kill switch. Nothing there exists yet.
+ 3. Wiring Send / Start Loop / Stop Loop to actually publish to that control topic — blocked on #2.
+ 4. Real hardware joint-limit validation — sliders currently use placeholder ranges (±100°, gripper 0–100, wrist_roll ±180°), not the actual calibration/`max_relative_target` data, since that cross-check was deferred to when Send gets wired up.
+ 5. Connection gating for Send/Loop — right now they're unconditionally disabled regardless of connection state; once #2/#3 land, they should follow the same "don't allow if not connected" rule Record/Grab already use.

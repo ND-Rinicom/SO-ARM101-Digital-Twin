@@ -392,6 +392,18 @@ function setCameraPose(x = 0, y = 0, z = 1, targetX = 0, targetY = 0, targetZ = 
   renderScene();
 }
 
+// Resizes the renderer/camera to the given CSS pixel dimensions and repaints.
+// The renderer is only ever sized once, at module load, to the full window —
+// callers that reserve screen space for their own UI (a sidebar, a docked
+// panel, etc.) are responsible for computing the right dimensions and wiring
+// up their own window resize listener; this just applies whatever they pass.
+function resizeRenderer(width, height) {
+  renderer.setSize(width, height);
+  camera.aspect = width / Math.max(1, height);
+  camera.updateProjectionMatrix();
+  renderScene();
+}
+
 // Export what your HTML needs
 export {
   loadModel,
@@ -405,6 +417,7 @@ export {
   setModelTransparency,
   setLighting,
   renderScene,
+  resizeRenderer,
   camera,
   renderer
 };
