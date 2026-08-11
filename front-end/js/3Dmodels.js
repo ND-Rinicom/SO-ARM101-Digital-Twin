@@ -302,6 +302,59 @@ function setRotation(jointName, axis, valueDeg, modelName) {
   bone.updateMatrixWorld(true);
 }
 
+// Look up a joint's bone directly (e.g. to read its world position/orientation
+// for placing an external gizmo) without exposing the whole bonesByModelName map.
+function getBone(jointName, modelName) {
+  return bonesByModelName[modelName]?.get(jointName.toLowerCase()) || null;
+}
+
+// Look up which local axis (x/y/z) a joint rotates around, per the loaded joint config.
+function getJointAxis(jointName, modelName) {
+  return jointAxisConfigs[modelName]?.joints?.[jointName] || null;
+}
+
+// Inverse of the per-joint transform setJointAngles applies before calling
+// setRotation (the y-axis negation, plus gripper's 0-100->degrees scaling and
+// wrist_roll's offset). Given a rotation delta measured directly around a
+// joint's own bone-local axis (e.g. from an external gizmo already aligned to
+// that axis), returns the equivalent delta in that joint's own value
+// convention (the same units setJointAngles/callers store), so a delta
+// measured in 3D space can be added straight onto a stored joint value.
+function jointValueDeltaFromAxisDelta(jointName, axisDeltaRad, modelName) {
+  const axis = getJointAxis(jointName, modelName);
+  if (!axis) return 0;
+
+  let valueDegDelta = THREE.MathUtils.radToDeg(axisDeltaRad);
+  if (axis === "y") valueDegDelta = -valueDegDelta;
+
+  if (jointName === "gripper") {
+    return valueDegDelta / -1.27; // inverse of angle = -((raw/100)*127)
+  } else if (jointName === "wrist_roll") {
+    return -valueDegDelta; // inverse of angle = -raw - 90
+  }
+  return valueDegDelta;
+}
+
+// Inverse of jointValueDeltaFromAxisDelta: given a delta in a joint's own
+// value convention (e.g. a JOINT_RANGES min/max bound relative to some
+// reference value), returns the equivalent rotation delta in radians around
+// that joint's bone-local axis — used to place a valid-range indicator on an
+// external gizmo in the same coordinate space setRotation itself operates in.
+function axisDeltaFromJointValueDelta(jointName, valueDelta, modelName) {
+  const axis = getJointAxis(jointName, modelName);
+  if (!axis) return 0;
+
+  let valueDegDelta = valueDelta;
+  if (jointName === "gripper") {
+    valueDegDelta = valueDelta * -1.27;
+  } else if (jointName === "wrist_roll") {
+    valueDegDelta = -valueDelta;
+  }
+
+  const axisDegDelta = axis === "y" ? -valueDegDelta : valueDegDelta;
+  return THREE.MathUtils.degToRad(axisDegDelta);
+}
+
 // Set render mode to wireframe
 function setRenderMode(wireframe = false) {
   if(wireframe)
@@ -418,6 +471,11 @@ export {
   setLighting,
   renderScene,
   resizeRenderer,
+  getBone,
+  getJointAxis,
+  jointValueDeltaFromAxisDelta,
+  axisDeltaFromJointValueDelta,
   camera,
-  renderer
+  renderer,
+  scene
 };

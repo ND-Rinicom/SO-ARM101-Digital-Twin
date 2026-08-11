@@ -189,6 +189,22 @@
       .mqtt-entry { padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); word-break: break-all; }
       .mqtt-entry .time { color: #888; margin-right: 6px; }
       .mqtt-entry .topic { color: #7ec4ff; }
+
+      #jointDialList {
+        list-style: none;
+        margin: 0 0 8px;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 4px;
+      }
+      #jointDialList li {
+        padding: 6px 8px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      #jointDialList li:last-child { border-bottom: none; }
+      #jointDialList li.selected { background: #33507a; }
+      #jointDialList li:hover { background: rgba(255, 255, 255, 0.06); }
     </style>
   </head>
   <body style="background-color: black;">
@@ -200,6 +216,12 @@
       <section>
         <h2>Joints</h2>
         <div id="jointRows"></div>
+      </section>
+
+      <section>
+        <h2>Direct manipulation (experimental)</h2>
+        <ul id="jointDialList"></ul>
+        <small class="hint">Select a joint, then drag the dial in the 3D view. Click the selected joint again to deselect. Sliders above still work as before.</small>
       </section>
 
       <section>
@@ -306,7 +328,12 @@
     <script src="js/mqtt/mqtt.min.js"></script>
     <script src="js/mqtt/jsonrpcovermqtt.js"></script>
     <script type="module">
-    import { loadModel, setJointAngles, setModelColor, setModelTransparency, resizeRenderer } from '/js/3Dmodels.js';
+    import * as THREE from 'three';
+    import {
+      loadModel, setJointAngles, setModelColor, setModelTransparency, resizeRenderer,
+      camera, renderer, scene, renderScene, getBone, getJointAxis,
+      jointValueDeltaFromAxisDelta, axisDeltaFromJointValueDelta
+    } from '/js/3Dmodels.js';
     import { initCameraControls } from '/js/cameraControls.js';
     import {
       JOINT_NAMES, JOINT_RANGES, emptyJoints, createAnimation, createKeyframe,
@@ -437,6 +464,7 @@
     let lastFollowerTimestamp = 0;
     let followerIsLive = false;
     let recordIntervalId = null;
+    let orbitControls = null;
 
     // Cache of generateFrames' output, invalidated whenever keyframes are
     // mutated (see markFramesDirty callers) or the fps input changes.
@@ -524,8 +552,6 @@
 
       const range = row.querySelector(`#joint-${name}`);
       const num = row.querySelector(`#joint-${name}-num`);
-      jointInputs[name] = { range, num };
-
       function apply(value) {
         const v = Math.max(min, Math.min(max, value));
         currentJoints[name] = v;
@@ -533,6 +559,9 @@
         num.value = v;
         setJointAngles(currentJoints, 'follower');
       }
+      // Exposed so other input methods (the dial) can drive the same
+      // clamp/store/render path a slider drag would, instead of duplicating it.
+      jointInputs[name] = { range, num, apply };
 
       range.addEventListener('input', () => apply(parseFloat(range.value)));
       num.addEventListener('input', () => {
@@ -545,6 +574,258 @@
       for (const name of JOINT_NAMES) {
         jointInputs[name].range.value = currentJoints[name];
         jointInputs[name].num.value = currentJoints[name];
+      }
+    }
+
+    // --- Direct manipulation: rotate a joint via a 3D dial instead of its slider ---
+    // Experimental, additive — sliders remain the precise/primary input.
+    // See docs/Joint-dial-interaction.md for the design this implements.
+    const jointDialListEl = document.getElementById('jointDialList');
+
+    // dialPivot is positioned/oriented to match the selected joint's bone exactly
+    // once, at selection time. dialHandle is its child and always starts a
+    // selection at an identity local transform, so its rotation after a drag is
+    // an unambiguous delta around the joint's own axis — reading a delta straight
+    // off the bone itself would risk an Euler-decomposition ambiguity, since the
+    // bone can carry an arbitrary (non-axis-aligned) rest-pose orientation.
+    const dialPivot = new THREE.Object3D();
+    const dialHandle = new THREE.Object3D();
+    dialPivot.add(dialHandle);
+    scene.add(dialPivot);
+
+    let selectedDialJoint = null;
+    let dialValueAtSelection = 0;
+
+    // Converts a point already expressed in dialPivot's local frame into an
+    // angle around the given axis. This is the exact inverse of the mapping
+    // ringPlaneRotation/axisZeroPoint encode further down — same hand-checked
+    // rotation-matrix algebra, run backwards, so the angle read back here
+    // agrees with where the ring/needle are drawn.
+    function angleFromLocalPoint(axis, localPoint) {
+      if (axis === 'x') return Math.atan2(localPoint.y, -localPoint.z);
+      if (axis === 'y') return Math.atan2(-localPoint.z, localPoint.x);
+      return Math.atan2(localPoint.y, localPoint.x); // z
+    }
+
+    // --- Custom drag interaction (replaces TransformControls entirely) ---
+    // Raycast the mouse against an invisible "picker" ring (see
+    // buildDialIndicators) sitting in the joint's rotation plane, intersect
+    // with that plane, and turn the intersection point into an angle via
+    // angleFromLocalPoint. Registered directly on the canvas *before*
+    // initCameraControls() creates OrbitControls further down (inside
+    // loadModel().then()) — DOM listeners on the same element fire in
+    // registration order, so going first here lets stopImmediatePropagation
+    // reliably veto OrbitControls' own handler on a hit, rather than racing it.
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let dialDrag = null; // { axis, plane, startAngle, startRotation }
+
+    function updatePointerNDC(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function onDialPointerDown(event) {
+      if (!selectedDialJoint || !dialPicker) return;
+      updatePointerNDC(event);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(dialPicker);
+      if (hits.length === 0) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const axis = getJointAxis(selectedDialJoint, 'follower');
+      const axisVectorLocal = new THREE.Vector3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0);
+      const worldNormal = axisVectorLocal.applyQuaternion(dialPivot.quaternion).normalize();
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(worldNormal, dialPivot.position);
+
+      const startPoint = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, startPoint)) return;
+      const startAngle = angleFromLocalPoint(axis, dialPivot.worldToLocal(startPoint));
+
+      dialDrag = { axis, plane, startAngle, startRotation: dialHandle.rotation[axis] };
+      if (orbitControls) orbitControls.enabled = false;
+
+      window.addEventListener('pointermove', onDialPointerMove);
+      window.addEventListener('pointerup', onDialPointerUp);
+    }
+
+    function onDialPointerMove(event) {
+      if (!dialDrag || !selectedDialJoint) return;
+      updatePointerNDC(event);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const point = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(dialDrag.plane, point)) return;
+
+      const angle = angleFromLocalPoint(dialDrag.axis, dialPivot.worldToLocal(point));
+      let delta = angle - dialDrag.startAngle;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta)); // wrap to [-pi, pi]
+      dialHandle.rotation[dialDrag.axis] = dialDrag.startRotation + delta;
+
+      const valueDelta = jointValueDeltaFromAxisDelta(selectedDialJoint, dialHandle.rotation[dialDrag.axis], 'follower');
+      jointInputs[selectedDialJoint].apply(dialValueAtSelection + valueDelta);
+    }
+
+    function onDialPointerUp() {
+      dialDrag = null;
+      if (orbitControls) orbitControls.enabled = true;
+      window.removeEventListener('pointermove', onDialPointerMove);
+      window.removeEventListener('pointerup', onDialPointerUp);
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onDialPointerDown);
+
+    // Range/value indicator: a flat ring (grey = unreachable, orange = within
+    // JOINT_RANGES) plus a small marker that tracks the current angle. Both
+    // need to agree on which direction is "angle zero" and which way is
+    // positive for the axis being shown — RingGeometry is built flat in the
+    // local XY plane (normal +Z) and CCW-positive about +Z by default, so for
+    // x/y axes the ring container is rotated to point its normal along that
+    // axis instead. These rotations were solved by hand (rotation-matrix
+    // algebra, not guessed) so the ring's angle convention matches
+    // dialHandle.rotation[axis] exactly; the needle's rest position uses the
+    // same mapped "angle zero" point so it starts aligned with the ring.
+    // This is the least-tested part of the dial — check it visually first.
+    const DIAL_SIZE = 0.6; // plays the same role as TransformControls' own "size" property
+    const DIAL_SEGMENTS = 48;
+
+    // A fixed world-space radius risked being invisible (either a speck or
+    // absurdly oversized) with no idea what unit scale this model actually
+    // uses. Instead, size the indicator the same way TransformControls sizes
+    // its own gizmo — the exact formula from TransformControlsGizmo's
+    // updateMatrixWorld() (checked against the three.js source, not guessed)
+    // — so it lands in the same visual ballpark as the already-visible gizmo
+    // regardless of the model's real-world units.
+    function computeDialRadius() {
+      const distance = dialPivot.position.distanceTo(camera.position);
+      const factor = camera.isOrthographicCamera
+        ? (camera.top - camera.bottom) / camera.zoom
+        : distance * Math.min((1.9 * Math.tan((Math.PI * camera.fov) / 360)) / camera.zoom, 7);
+      return (factor / 4) * DIAL_SIZE;
+    }
+
+    function ringPlaneRotation(axis) {
+      if (axis === 'x') return new THREE.Euler(0, Math.PI / 2, 0);
+      if (axis === 'y') return new THREE.Euler(-Math.PI / 2, 0, 0);
+      return new THREE.Euler(0, 0, 0); // z: RingGeometry's default plane already matches
+    }
+
+    function axisZeroPoint(axis, radius) {
+      // Where the ring's own angle-zero (local +X before the rotation above)
+      // ends up once that rotation is applied — see ringPlaneRotation.
+      if (axis === 'x') return new THREE.Vector3(0, 0, -radius);
+      return new THREE.Vector3(radius, 0, 0); // y and z both map to +X here
+    }
+
+    let dialRangeRing = null;
+    let dialNeedle = null;
+    let dialPicker = null;
+
+    function clearDialIndicators() {
+      if (dialRangeRing) {
+        dialPivot.remove(dialRangeRing);
+        dialRangeRing = null;
+      }
+      if (dialNeedle) {
+        dialHandle.remove(dialNeedle);
+        dialNeedle = null;
+      }
+      dialPicker = null; // was a child of dialRangeRing, already gone with it
+    }
+
+    function buildDialIndicators(jointName, axis) {
+      clearDialIndicators();
+
+      const radius = computeDialRadius();
+      const [min, max] = JOINT_RANGES[jointName];
+      const loDelta = axisDeltaFromJointValueDelta(jointName, min - dialValueAtSelection, 'follower');
+      const hiDelta = axisDeltaFromJointValueDelta(jointName, max - dialValueAtSelection, 'follower');
+      const thetaStart = Math.min(loDelta, hiDelta);
+      const thetaLength = Math.max(loDelta, hiDelta) - thetaStart;
+
+      const group = new THREE.Group();
+      group.rotation.copy(ringPlaneRotation(axis));
+
+      const greyMat = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false });
+      const validMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide, depthTest: false });
+
+      const fullRing = new THREE.Mesh(new THREE.RingGeometry(radius * 0.9, radius, DIAL_SEGMENTS), greyMat);
+      fullRing.renderOrder = 998;
+      group.add(fullRing);
+
+      const validRing = new THREE.Mesh(
+        new THREE.RingGeometry(radius * 0.9, radius, DIAL_SEGMENTS, 1, thetaStart, thetaLength),
+        validMat
+      );
+      validRing.renderOrder = 999;
+      group.add(validRing);
+
+      // Invisible, generous hit-target for onDialPointerDown's raycast — a
+      // real click target is much easier to grab than the thin visible ring
+      // itself. Fully transparent but still raycastable: opacity doesn't
+      // affect hit-testing in three.js, only rendering.
+      const pickerMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+      const picker = new THREE.Mesh(new THREE.RingGeometry(radius * 0.6, radius * 1.3, DIAL_SEGMENTS), pickerMat);
+      group.add(picker);
+      dialPicker = picker;
+
+      dialPivot.add(group);
+      dialRangeRing = group;
+
+      const needleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false });
+      const needle = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.14, 12, 12), needleMat);
+      needle.position.copy(axisZeroPoint(axis, radius));
+      needle.renderOrder = 1000;
+      dialHandle.add(needle);
+      dialNeedle = needle;
+    }
+
+    function selectJointForDial(jointName) {
+      const bone = getBone(jointName, 'follower');
+      const axis = getJointAxis(jointName, 'follower');
+      if (!bone || !axis) return;
+
+      selectedDialJoint = jointName;
+      dialValueAtSelection = currentJoints[jointName];
+
+      bone.getWorldPosition(dialPivot.position);
+      bone.getWorldQuaternion(dialPivot.quaternion);
+      dialHandle.position.set(0, 0, 0);
+      dialHandle.rotation.set(0, 0, 0);
+
+      try {
+        buildDialIndicators(jointName, axis);
+      } catch (err) {
+        // The ring/needle/picker is the least-tested part of this feature —
+        // surface a failure loudly rather than letting it silently vanish.
+        console.error('Failed to build dial indicator:', err);
+      }
+      renderScene();
+    }
+
+    function deselectDialJoint() {
+      selectedDialJoint = null;
+      clearDialIndicators();
+      renderScene();
+    }
+
+    function renderJointDialList() {
+      jointDialListEl.innerHTML = '';
+      for (const name of JOINT_NAMES) {
+        const li = document.createElement('li');
+        li.textContent = name;
+        if (name === selectedDialJoint) li.classList.add('selected');
+        li.addEventListener('click', () => {
+          if (selectedDialJoint === name) {
+            deselectDialJoint();
+          } else {
+            selectJointForDial(name);
+          }
+          renderJointDialList();
+        });
+        jointDialListEl.appendChild(li);
       }
     }
 
@@ -582,6 +863,12 @@
       syncSlidersFromCurrentJoints();
       setJointAngles(currentJoints, 'follower');
       renderKeyframeList();
+      // A wholesale pose change invalidates the dial's captured pivot/orientation
+      // (see selectJointForDial) — drop the selection rather than leave it stale.
+      if (selectedDialJoint) {
+        deselectDialJoint();
+        renderJointDialList();
+      }
     }
 
     function addKeyframeFromSliders() {
@@ -637,6 +924,12 @@
       const fps = Math.max(1, parseFloat(followerFpsEl.value) || DEFAULT_FPS);
       const frames = getFrames(fps);
       if (frames.length === 0) return;
+      if (selectedDialJoint) {
+        // Preview drives every joint continuously — the dial's captured pivot
+        // would go stale immediately, so drop the selection rather than fight it.
+        deselectDialJoint();
+        renderJointDialList();
+      }
       playback.play(frames, fps);
       btnPreview.disabled = true;
       btnStopPreview.disabled = false;
@@ -692,13 +985,15 @@
       // (below) is read-only for the leader feed, and initCameraControls no-ops its
       // camera broadcast without a service — we don't want orbiting the camera on this
       // page to publish change-camera messages that would move other open viewers.
-      initCameraControls({
+      const cameraController = initCameraControls({
         modelName: 'follower',
         initialCameraPosition: { x: 0, y: 3, z: 0 },
         initialTarget: { x: 0, y: 0, z: 0 }
       });
+      orbitControls = cameraController.controls;
 
       renderKeyframeList();
+      renderJointDialList();
     });
 
     // --- Live leader feed (read-only) ---
@@ -834,6 +1129,12 @@
     });
 
     function startRecording() {
+      if (selectedDialJoint) {
+        // Recording drives every joint continuously from the live feed — the
+        // dial's captured pivot would go stale immediately, so drop it here too.
+        deselectDialJoint();
+        renderJointDialList();
+      }
       const intervalMs = Math.max(20, parseFloat(recordIntervalEl.value) || 200);
       recordIntervalId = setInterval(() => {
         if (!lastLeaderJoints) return;

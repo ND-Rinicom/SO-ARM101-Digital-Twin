@@ -204,6 +204,7 @@ export function initCameraControls({
 
   return {
     applyRemoteCamera,
-    render: renderFrame
+    render: renderFrame,
+    controls
   };
 }
