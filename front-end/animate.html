@@ -42,8 +42,7 @@
 
       .joint-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
       .joint-row label { width: 92px; flex-shrink: 0; }
-      .joint-row input[type="range"] { flex: 1; }
-      .joint-row input[type="number"] { width: 56px; }
+      .joint-row input[type="number"] { flex: 1; }
 
       button {
         background: #2a2f3a;
@@ -219,9 +218,9 @@
       </section>
 
       <section>
-        <h2>Direct manipulation (experimental)</h2>
+        <h2>Direct manipulation</h2>
         <ul id="jointDialList"></ul>
-        <small class="hint">Select a joint, then drag the dial in the 3D view. Click the selected joint again to deselect. Sliders above still work as before.</small>
+        <small class="hint">Select a joint, then drag the dial in the 3D view. Click the selected joint again to deselect. The number boxes above still work for precise entry.</small>
       </section>
 
       <section>
@@ -232,7 +231,7 @@
           <label>Hold ms <input type="number" id="kfHold" value="0" min="0" style="width:64px;"></label>
         </div>
         <div class="row">
-          <button id="btnAddKeyframe">Add from sliders</button>
+          <button id="btnAddKeyframe">Add from joints</button>
           <button id="btnUpdateKeyframe" disabled>Update selected</button>
           <button id="btnRemoveKeyframe" disabled>Remove</button>
           <button id="btnMoveUp" disabled>&#9650;</button>
@@ -444,7 +443,7 @@
     const FOLLOWER_TOPIC = MODEL_TOPIC_ROOT + '/follower';
     const MQTT_LOG_MAX_ENTRIES = 200;
 
-    // Starting pose for the sliders/preview on page load.
+    // Starting pose for the joint inputs/preview on page load.
     const DEFAULT_JOINTS = {
       shoulder_pan: 0,
       shoulder_lift: -100,
@@ -536,7 +535,7 @@
       });
     });
 
-    // --- Joint sliders ---
+    // --- Joint number inputs (precise entry; the dial handles direct rotation) ---
     const jointInputs = {};
     for (const name of JOINT_NAMES) {
       const [min, max] = JOINT_RANGES[name];
@@ -544,42 +543,37 @@
       const row = document.createElement('div');
       row.className = 'joint-row';
       row.innerHTML = `
-        <label for="joint-${name}">${name}</label>
-        <input type="range" id="joint-${name}" min="${min}" max="${max}" step="0.5" value="${startValue}">
+        <label for="joint-${name}-num">${name}</label>
         <input type="number" id="joint-${name}-num" min="${min}" max="${max}" step="0.5" value="${startValue}">
       `;
       jointRowsEl.appendChild(row);
 
-      const range = row.querySelector(`#joint-${name}`);
       const num = row.querySelector(`#joint-${name}-num`);
       function apply(value) {
         const v = Math.max(min, Math.min(max, value));
         currentJoints[name] = v;
-        range.value = v;
         num.value = v;
         setJointAngles(currentJoints, 'follower');
       }
       // Exposed so other input methods (the dial) can drive the same
-      // clamp/store/render path a slider drag would, instead of duplicating it.
-      jointInputs[name] = { range, num, apply };
+      // clamp/store/render path a number-box edit would, instead of duplicating it.
+      jointInputs[name] = { num, apply };
 
-      range.addEventListener('input', () => apply(parseFloat(range.value)));
       num.addEventListener('input', () => {
         const v = parseFloat(num.value);
         if (!isNaN(v)) apply(v);
       });
     }
 
-    function syncSlidersFromCurrentJoints() {
+    function syncJointInputsFromCurrentJoints() {
       for (const name of JOINT_NAMES) {
-        jointInputs[name].range.value = currentJoints[name];
         jointInputs[name].num.value = currentJoints[name];
       }
     }
 
-    // --- Direct manipulation: rotate a joint via a 3D dial instead of its slider ---
-    // Experimental, additive — sliders remain the precise/primary input.
-    // See docs/Joint-dial-interaction.md for the design this implements.
+    // --- Direct manipulation: rotate a joint via a 3D dial ---
+    // The number inputs above remain for precise entry; this drives the same
+    // apply() path they do. See docs/Joint-dial-interaction.md for the design.
     const jointDialListEl = document.getElementById('jointDialList');
 
     // dialPivot is positioned/oriented to match the selected joint's bone exactly
@@ -597,10 +591,9 @@
     let dialValueAtSelection = 0;
 
     // Converts a point already expressed in dialPivot's local frame into an
-    // angle around the given axis. This is the exact inverse of the mapping
-    // ringPlaneRotation/axisZeroPoint encode further down — same hand-checked
-    // rotation-matrix algebra, run backwards, so the angle read back here
-    // agrees with where the ring/needle are drawn.
+    // angle around the given axis. This is the exact inverse of pointAtAngle
+    // further down — same hand-checked rotation-matrix algebra, run
+    // backwards, so the angle read back here agrees with where things are drawn.
     function angleFromLocalPoint(axis, localPoint) {
       if (axis === 'x') return Math.atan2(localPoint.y, -localPoint.z);
       if (axis === 'y') return Math.atan2(-localPoint.z, localPoint.x);
@@ -665,7 +658,12 @@
       dialHandle.rotation[dialDrag.axis] = dialDrag.startRotation + delta;
 
       const valueDelta = jointValueDeltaFromAxisDelta(selectedDialJoint, dialHandle.rotation[dialDrag.axis], 'follower');
-      jointInputs[selectedDialJoint].apply(dialValueAtSelection + valueDelta);
+      // Snap the applied value to 0.1 steps — the needle itself still tracks
+      // the raw mouse angle continuously (it's driven by dialHandle.rotation,
+      // not by this stepped value), only the joint value/number box quantizes.
+      const rawValue = dialValueAtSelection + valueDelta;
+      const steppedValue = Math.round(rawValue * 10) / 10;
+      jointInputs[selectedDialJoint].apply(steppedValue);
     }
 
     function onDialPointerUp() {
@@ -677,7 +675,7 @@
 
     renderer.domElement.addEventListener('pointerdown', onDialPointerDown);
 
-    // Range/value indicator: a flat ring (grey = unreachable, orange = within
+    // Range/value indicator: a flat ring (grey = unreachable, green = within
     // JOINT_RANGES) plus a small marker that tracks the current angle. Both
     // need to agree on which direction is "angle zero" and which way is
     // positive for the axis being shown — RingGeometry is built flat in the
@@ -688,7 +686,7 @@
     // dialHandle.rotation[axis] exactly; the needle's rest position uses the
     // same mapped "angle zero" point so it starts aligned with the ring.
     // This is the least-tested part of the dial — check it visually first.
-    const DIAL_SIZE = 0.6; // plays the same role as TransformControls' own "size" property
+    const DIAL_SIZE = 0.5; // plays the same role as TransformControls' own "size" property
     const DIAL_SEGMENTS = 48;
 
     // A fixed world-space radius risked being invisible (either a speck or
@@ -712,11 +710,33 @@
       return new THREE.Euler(0, 0, 0); // z: RingGeometry's default plane already matches
     }
 
-    function axisZeroPoint(axis, radius) {
-      // Where the ring's own angle-zero (local +X before the rotation above)
-      // ends up once that rotation is applied — see ringPlaneRotation.
-      if (axis === 'x') return new THREE.Vector3(0, 0, -radius);
-      return new THREE.Vector3(radius, 0, 0); // y and z both map to +X here
+    // Where a given angle (in the same convention angleFromLocalPoint reads)
+    // lands as a 3D point in dialPivot's local frame, at the given radius —
+    // the forward version of angleFromLocalPoint, generalized from what used
+    // to be a fixed "angle zero" point (see ringPlaneRotation for why each
+    // axis case looks like this).
+    function pointAtAngle(axis, angle, radius) {
+      if (axis === 'x') return new THREE.Vector3(0, Math.sin(angle) * radius, -Math.cos(angle) * radius);
+      if (axis === 'y') return new THREE.Vector3(Math.cos(angle) * radius, 0, -Math.sin(angle) * radius);
+      return new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0); // z
+    }
+
+    // The ring/needle's "angle zero" was previously wherever RingGeometry's
+    // own default happened to land (see pointAtAngle) — arbitrary, and
+    // unrelated to which way the arm actually points. Anchor it instead to
+    // the real direction from this joint's pivot toward the next joint down
+    // the chain (or the previous one, for the last joint, since there's
+    // nothing further out to point at) — JOINT_NAMES is already in kinematic
+    // order, so the "next" bone is exactly what this joint physically moves.
+    function computeCurrentPointingAngle(jointName, axis) {
+      const idx = JOINT_NAMES.indexOf(jointName);
+      const refJointName = JOINT_NAMES[idx + 1] ?? JOINT_NAMES[idx - 1];
+      const refBone = refJointName ? getBone(refJointName, 'follower') : null;
+      if (!refBone) return 0;
+
+      const dirWorld = refBone.getWorldPosition(new THREE.Vector3()).sub(dialPivot.position);
+      const dirLocal = dirWorld.applyQuaternion(dialPivot.quaternion.clone().invert());
+      return angleFromLocalPoint(axis, dirLocal);
     }
 
     let dialRangeRing = null;
@@ -739,27 +759,39 @@
       clearDialIndicators();
 
       const radius = computeDialRadius();
+      const pointingAngle = computeCurrentPointingAngle(jointName, axis);
       const [min, max] = JOINT_RANGES[jointName];
       const loDelta = axisDeltaFromJointValueDelta(jointName, min - dialValueAtSelection, 'follower');
       const hiDelta = axisDeltaFromJointValueDelta(jointName, max - dialValueAtSelection, 'follower');
-      const thetaStart = Math.min(loDelta, hiDelta);
-      const thetaLength = Math.max(loDelta, hiDelta) - thetaStart;
+      // Offset by pointingAngle so the arc is drawn anchored to the arm's real
+      // current direction rather than the ring's arbitrary internal zero.
+      const thetaStart = pointingAngle + Math.min(loDelta, hiDelta);
+      const thetaLength = Math.max(loDelta, hiDelta) - Math.min(loDelta, hiDelta);
 
       const group = new THREE.Group();
       group.rotation.copy(ringPlaneRotation(axis));
 
-      const greyMat = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false });
-      const validMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide, depthTest: false });
+      // transparent + depthWrite:false on all three of these (not just the grey
+      // ring, as before) matters: the robot's own "ghost" material is
+      // transparent:true (see 3Dmodels.js's getMaterial()), which puts it in
+      // three.js's separate transparent render queue. Anything left as opaque
+      // here would sit in a different queue with its own draw order, and
+      // renderOrder alone doesn't reliably arbitrate across that boundary —
+      // it was letting the robot draw over the orange arc/needle despite both
+      // having high renderOrder values. Matching transparent:true here puts
+      // everything in the same queue, where renderOrder actually decides order.
+      const greyMat = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false });
+      const validMat = new THREE.MeshBasicMaterial({ color: 0x33cc55, side: THREE.DoubleSide, transparent: true, depthTest: false, depthWrite: false });
 
       const fullRing = new THREE.Mesh(new THREE.RingGeometry(radius * 0.9, radius, DIAL_SEGMENTS), greyMat);
-      fullRing.renderOrder = 998;
+      fullRing.renderOrder = 9998;
       group.add(fullRing);
 
       const validRing = new THREE.Mesh(
         new THREE.RingGeometry(radius * 0.9, radius, DIAL_SEGMENTS, 1, thetaStart, thetaLength),
         validMat
       );
-      validRing.renderOrder = 999;
+      validRing.renderOrder = 9999;
       group.add(validRing);
 
       // Invisible, generous hit-target for onDialPointerDown's raycast — a
@@ -774,10 +806,10 @@
       dialPivot.add(group);
       dialRangeRing = group;
 
-      const needleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false });
+      const needleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false });
       const needle = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.14, 12, 12), needleMat);
-      needle.position.copy(axisZeroPoint(axis, radius));
-      needle.renderOrder = 1000;
+      needle.position.copy(pointAtAngle(axis, pointingAngle, radius));
+      needle.renderOrder = 10000;
       dialHandle.add(needle);
       dialNeedle = needle;
     }
@@ -860,7 +892,7 @@
       currentJoints = { ...kf.joints };
       kfInterpEl.value = kf.interpolationMs;
       kfHoldEl.value = kf.holdMs;
-      syncSlidersFromCurrentJoints();
+      syncJointInputsFromCurrentJoints();
       setJointAngles(currentJoints, 'follower');
       renderKeyframeList();
       // A wholesale pose change invalidates the dial's captured pivot/orientation
@@ -871,7 +903,7 @@
       }
     }
 
-    function addKeyframeFromSliders() {
+    function addKeyframeFromCurrentJoints() {
       const kf = createKeyframe(currentJoints, parseFloat(kfInterpEl.value), parseFloat(kfHoldEl.value));
       animation.keyframes.push(kf);
       selectedIndex = animation.keyframes.length - 1;
@@ -879,7 +911,7 @@
       renderKeyframeList();
     }
 
-    btnAddKeyframe.addEventListener('click', addKeyframeFromSliders);
+    btnAddKeyframe.addEventListener('click', addKeyframeFromCurrentJoints);
 
     btnUpdateKeyframe.addEventListener('click', () => {
       if (selectedIndex < 0) return;
@@ -1010,7 +1042,7 @@
           // (sampling into keyframes happens on its own interval, see startRecording).
           currentJoints = lastLeaderJoints;
           setJointAngles(currentJoints, 'follower');
-          syncSlidersFromCurrentJoints();
+          syncJointInputsFromCurrentJoints();
         }
       } else if (message.method === 'set_actual_joint_angles') {
         // The follower's own feedback publish (see follower.py) — used only to

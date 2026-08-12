@@ -143,6 +143,7 @@ function loadModel(modelBasePath, modelName = 'follower') {
             material.side = THREE.DoubleSide; // Ensure both sides are rendered
 
             // Apply materials + collect bones
+            const meshesFound = [];
             model.traverse((child) => {
               if (child.isMesh) {
                 child.material = material.clone(); // Clone material for independent color control
@@ -153,6 +154,8 @@ function loadModel(modelBasePath, modelName = 'follower') {
                 } else {
                   addOutlineForMesh(child);
                 }
+
+                meshesFound.push(child);
               }
 
               if (child.isBone) {
@@ -168,7 +171,28 @@ function loadModel(modelBasePath, modelName = 'follower') {
             });
 
             scene.add(model);
-            
+
+            // TEMP CONSOLE LOG SO I CAN SEE WHAT BONE/MESH NAMES MY GLB HAS
+            console.log(
+              `Bones for ${modelName}:`,
+              Array.from(bonesByModelName[modelName].entries()).map(([name, bone]) => ({
+                name,
+                parent: bone.parent?.name ?? null,
+                localPosition: bone.position.toArray().map((n) => +n.toFixed(4)),
+                worldPosition: bone.getWorldPosition(new THREE.Vector3()).toArray().map((n) => +n.toFixed(4)),
+              }))
+            );
+            console.log(
+              `Meshes for ${modelName}:`,
+              meshesFound.map((mesh) => ({
+                name: mesh.name,
+                parent: mesh.parent?.name ?? null,
+                parentIsBone: !!mesh.parent?.isBone,
+                localPosition: mesh.position.toArray().map((n) => +n.toFixed(4)),
+                worldPosition: mesh.getWorldPosition(new THREE.Vector3()).toArray().map((n) => +n.toFixed(4)),
+              }))
+            );
+
             resolve(true);
           },
           undefined,
